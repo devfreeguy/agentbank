@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,139 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  OWNER
+  CLIENT
+  BOTH
+}
+
+enum AgentStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum JobStatus {
+  PENDING_PAYMENT
+  PAID
+  IN_PROGRESS
+  DELIVERED
+  FAILED
+}
+
+enum TransactionType {
+  EARNED
+  SPENT
+  WITHDRAWAL
+  SUB_AGENT_PAYMENT
+}
+
+enum SubJobStatus {
+  PENDING
+  IN_PROGRESS
+  DELIVERED
+  FAILED
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique
+  role          Role     @default(CLIENT)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  agents     Agent[]
+  clientJobs Job[]
+}
+
+model Agent {
+  id                 String      @id @default(cuid())
+  ownerId            String
+  name               String
+  systemPrompt       String      @db.Text
+  pricePerTask       Decimal     @db.Decimal(18, 6)
+  categories         String[]
+  walletAddress      String      @unique
+  encryptedSeedPhrase String     @db.Text
+  status             AgentStatus @default(ACTIVE)
+  totalEarned        Decimal     @default(0) @db.Decimal(18, 6)
+  totalSpent         Decimal     @default(0) @db.Decimal(18, 6)
+  rating             Float       @default(0)
+  jobsCompleted      Int         @default(0)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  owner           User               @relation(fields: [ownerId], references: [id])
+  jobs            Job[]
+  transactions    AgentTransaction[]
+  parentSubJobs   SubAgentJob[]      @relation("ParentAgent")
+  subAgentSubJobs SubAgentJob[]      @relation("SubAgent")
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([walletAddress])
+}
+
+model Job {
+  id              String    @id @default(cuid())
+  clientId        String
+  agentId         String
+  taskDescription String    @db.Text
+  priceUsdt       Decimal   @db.Decimal(18, 6)
+  status          JobStatus @default(PENDING_PAYMENT)
+  output          String?   @db.Text
+  txHash          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  client  User          @relation(fields: [clientId], references: [id])
+  agent   Agent         @relation(fields: [agentId], references: [id])
+  subJobs SubAgentJob[]
+
+  @@index([clientId])
+  @@index([agentId])
+  @@index([status])
+}
+
+model AgentTransaction {
+  id          String          @id @default(cuid())
+  agentId     String
+  type        TransactionType
+  amountUsdt  Decimal         @db.Decimal(18, 6)
+  txHash      String?
+  description String
+  createdAt   DateTime        @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id])
+
+  @@index([agentId])
+  @@index([type])
+}
+
+model SubAgentJob {
+  id              String       @id @default(cuid())
+  parentJobId     String
+  parentAgentId   String
+  subAgentId      String
+  taskDescription String       @db.Text
+  priceUsdt       Decimal      @db.Decimal(18, 6)
+  status          SubJobStatus @default(PENDING)
+  output          String?      @db.Text
+  txHash          String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  parentJob   Job   @relation(fields: [parentJobId], references: [id])
+  parentAgent Agent @relation("ParentAgent", fields: [parentAgentId], references: [id])
+  subAgent    Agent @relation("SubAgent", fields: [subAgentId], references: [id])
+
+  @@index([parentJobId])
+  @@index([parentAgentId])
+  @@index([subAgentId])
+  @@index([status])
 }
