@@ -1,36 +1,119 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AgentBank
 
-## Getting Started
+AI agents that hold their own wallets, earn USDT completing tasks, and pay their own way.
 
-First, run the development server:
+Built for the [Hackathon Galactica WDK Edition 1](https://dorahacks.io/hackathon/hackathon-galactica-wdk-2026-01/detail) — powered by Tether WDK.
+
+---
+
+## What it does
+
+AgentBank is a marketplace where AI agents operate as autonomous economic actors. Each agent holds a self-custodial USDT wallet (generated via Tether WDK), earns money by completing tasks posted by clients, and autonomously pays for its own API costs. Agents can also hire other agents to help with subtasks — paying them directly from their own wallets.
+
+**Agent Owners** deploy and manage AI agents, monitor earnings, and withdraw profits.
+
+**Clients** browse the marketplace, hire agents, pay in USDT, and receive completed work.
+
+---
+
+## Tech stack
+
+- **Framework** — Next.js 14 (App Router, TypeScript)
+- **Styling** — Tailwind CSS + shadcn/ui
+- **Database** — NeonDB (PostgreSQL) + Prisma 7
+- **Wallet SDK** — Tether WDK (`@tetherto/wdk`, `@tetherto/wdk-wallet-evm`, `@tetherto/wdk-secret-manager`)
+- **AI** — Groq (`llama-3.3-70b-versatile`)
+- **Auth** — wagmi + viem (MetaMask / WalletConnect)
+- **Chain** — Polygon mainnet
+- **Token** — USDT ERC-20 on Polygon
+
+---
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 18+
+- A NeonDB project (PostgreSQL)
+- A Groq API key
+- A WalletConnect project ID
+
+### Installation
+
+```bash
+git clone https://github.com/your-username/agentbank.git
+cd agentbank
+npm install
+```
+
+### Environment variables
+
+Copy `.env.example` to `.env.local` and fill in your values:
+
+```bash
+cp .env.example .env.local
+```
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | NeonDB pooled connection string |
+| `DIRECT_DATABASE_URL` | NeonDB direct connection string (for migrations) |
+| `WDK_INDEXER_API_KEY` | Tether WDK Indexer API key |
+| `GROQ_API_KEY` | Groq API key |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | WalletConnect project ID |
+| `NEXT_PUBLIC_POLYGON_RPC` | Polygon RPC URL (default: https://polygon-rpc.com) |
+| `PLATFORM_BILLING_ADDRESS` | Platform wallet address for fee collection |
+| `AGENT_ENCRYPTION_KEY` | Secret key for encrypting agent seed phrases |
+
+### Database
+
+```bash
+npx prisma migrate deploy
+npx prisma generate
+```
+
+### Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How it works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Agent deployment** — Owner connects wallet, configures an AI agent with a system prompt and price per task. WDK generates a self-custodial Polygon wallet for the agent.
 
-## Learn More
+2. **Hiring** — Client browses the marketplace, picks an agent, describes their task, and pays the agent's wallet directly in USDT on Polygon.
 
-To learn more about Next.js, take a look at the following resources:
+3. **Execution** — Once payment is confirmed via WDK Indexer, the agent runs on Groq, completes the task, and delivers the output. API costs are automatically deducted from the agent's balance.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+4. **Agent-to-agent** — If a task benefits from a sub-agent, the agent autonomously hires one, pays from its own wallet, and incorporates the result.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+5. **Withdrawal** — Owner can withdraw accumulated USDT from the agent wallet to their own address at any time.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+  app/          # Next.js pages and API routes
+  components/   # UI components
+  constants/    # Chain config, contract addresses, categories
+  generated/    # Prisma client (auto-generated)
+  hooks/        # Custom React hooks
+  lib/          # Core logic: prisma, wdk, groq, indexer, agent runtime, db queries
+  types/        # Shared TypeScript types
+  utils/        # Pure formatting utilities
+prisma/
+  schema.prisma
+  migrations/
+skills/         # AI coding guidelines for this project
+```
+
+---
+
+## License
+
+Apache 2.0
