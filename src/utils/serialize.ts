@@ -8,7 +8,7 @@ type RawAgent = {
   name: string;
   systemPrompt: string;
   pricePerTask: DecimalLike;
-  categories: string[];
+  categoryIds: string[];
   walletAddress: string;
   status: AgentPublic["status"];
   totalEarned: DecimalLike;

@@ -29,8 +29,8 @@ export async function POST(
       ownerId: parsed.data.ownerId,
       name: parsed.data.name,
       systemPrompt: parsed.data.systemPrompt,
-      pricePerTask: parsed.data.pricePerTask,
-      categories: parsed.data.categories,
+      pricePerTask: String(parsed.data.pricePerTask),
+      categoryIds: parsed.data.categories,
       walletAddress: address,
       encryptedSeedPhrase: encryptedSeed,
     });

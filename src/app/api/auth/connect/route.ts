@@ -19,10 +19,12 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiSuccess<Wa
     );
   }
 
+  console.log("[POST /api/auth/connect] upserting user:", parsed.data.walletAddress);
   try {
     const user = await upsertUser(parsed.data.walletAddress);
     return NextResponse.json<ApiSuccess<WalletUser>>({ data: user });
   } catch (error) {
+    console.error("[POST /api/auth/connect] upsertUser failed:", error);
     return NextResponse.json<ApiError>(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }

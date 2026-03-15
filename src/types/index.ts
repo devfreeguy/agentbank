@@ -1,12 +1,27 @@
 import { AgentStatus, JobStatus, Role } from "@/generated/prisma/enums";
 
+export type Subcategory = {
+  id: string;
+  name: string;
+  slug: string;
+  categoryId: string;
+};
+
+export type CategoryWithSubs = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  subcategories: Subcategory[];
+};
+
 export type AgentPublic = {
   id: string;
   ownerId: string;
   name: string;
   systemPrompt: string;
   pricePerTask: string;
-  categories: string[];
+  categoryIds: string[];
   walletAddress: string;
   status: AgentStatus;
   totalEarned: string;

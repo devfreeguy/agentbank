@@ -1,7 +1,4 @@
 import { z } from "zod";
-import { JobCategories } from "@/constants/categories";
-
-const validCategoryValues = JobCategories.map((c) => c.value) as [string, ...string[]];
 
 export const createAgentSchema = z.object({
   ownerId: z.string().min(1, "ownerId is required"),
@@ -9,16 +6,9 @@ export const createAgentSchema = z.object({
   systemPrompt: z
     .string()
     .min(1, "systemPrompt is required")
-    .max(1000, "systemPrompt must be 1000 characters or fewer"),
-  pricePerTask: z
-    .string()
-    .min(1, "pricePerTask is required")
-    .refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
-      message: "pricePerTask must be a positive number",
-    }),
-  categories: z
-    .array(z.enum(validCategoryValues as [string, ...string[]]))
-    .min(1, "at least one category is required"),
+    .max(4000, "systemPrompt must be 4000 characters or fewer"),
+  pricePerTask: z.coerce.number().positive("pricePerTask must be a positive number"),
+  categories: z.array(z.string()).min(1, "at least one category is required"),
 });
 
 export const updateAgentStatusSchema = z.object({

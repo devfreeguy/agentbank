@@ -8,7 +8,7 @@ const agentPublicSelect = {
   name: true,
   systemPrompt: true,
   pricePerTask: true,
-  categories: true,
+  categoryIds: true,
   walletAddress: true,
   status: true,
   totalEarned: true,
@@ -24,7 +24,7 @@ export async function createAgent(data: {
   name: string;
   systemPrompt: string;
   pricePerTask: string;
-  categories: string[];
+  categoryIds: string[];
   walletAddress: string;
   encryptedSeedPhrase: string;
 }) {
