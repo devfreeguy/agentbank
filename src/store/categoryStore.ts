@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import axios from "axios";
+import axiosClient from "@/lib/axiosClient";
 import type { CategoryWithSubs } from "@/types/index";
 
 interface CategoryState {
@@ -31,10 +31,12 @@ export const useCategoryStore = create<CategoryState & CategoryActions>()(
         state.isLoading = true;
       });
       try {
-        const res = await axios.get<{ data: CategoryWithSubs[] }>("/api/categories");
-        set((state) => {
-          state.categories = res.data.data;
-        });
+        const res = await axiosClient.get<{ data: CategoryWithSubs[] }>("/api/categories");
+        if (res.data?.data) {
+          set((state) => {
+            state.categories = res.data.data;
+          });
+        }
       } catch (err) {
         console.error("[categoryStore] fetchCategories failed:", err);
       } finally {

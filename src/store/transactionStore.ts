@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import axios from "axios";
+import axiosClient from "@/lib/axiosClient";
 import type { SerializedTransaction } from "@/utils/serialize";
 
 interface TransactionState {
@@ -31,12 +31,14 @@ export const useTransactionStore = create<TransactionState & TransactionActions>
         state.isLoading = true;
       });
       try {
-        const res = await axios.get<{ data: SerializedTransaction[] }>(
+        const res = await axiosClient.get<{ data: SerializedTransaction[] }>(
           `/api/agents/${agentId}/transactions`
         );
-        set((state) => {
-          state.transactionsByAgent[agentId] = res.data.data;
-        });
+        if (res.data?.data) {
+          set((state) => {
+            state.transactionsByAgent[agentId] = res.data.data;
+          });
+        }
       } catch (err) {
         console.error("[transactionStore] fetchTransactions failed:", err);
       } finally {

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import axios from "axios";
+import axiosClient from "@/lib/axiosClient";
 import type { JobWithRelations } from "@/types/index";
 
 interface JobState {
@@ -8,6 +8,8 @@ interface JobState {
   myJobsWallet: string | null;
   activeJob: JobWithRelations | null;
   isLoadingJobs: boolean;
+  activeJobId: string | null;
+  newlyDeliveredIds: string[];
 }
 
 interface JobActions {
@@ -16,6 +18,10 @@ interface JobActions {
   addJob: (job: JobWithRelations) => void;
   updateJob: (id: string, updates: Partial<JobWithRelations>) => void;
   fetchMyJobs: (walletAddress: string, force?: boolean) => Promise<void>;
+  setActiveJobId: (id: string | null) => void;
+  addNewlyDelivered: (id: string) => void;
+  markJobViewed: (id: string) => void;
+  resumeJob: (jobId: string) => void;
 }
 
 export const useJobStore = create<JobState & JobActions>()(
@@ -24,6 +30,8 @@ export const useJobStore = create<JobState & JobActions>()(
     myJobsWallet: null,
     activeJob: null,
     isLoadingJobs: false,
+    activeJobId: null,
+    newlyDeliveredIds: [],
 
     setMyJobs: (jobs) =>
       set((state) => {
@@ -37,7 +45,10 @@ export const useJobStore = create<JobState & JobActions>()(
 
     addJob: (job) =>
       set((state) => {
-        state.myJobs.unshift(job);
+        // Avoid duplicates (idempotent)
+        if (!state.myJobs.find((j) => j.id === job.id)) {
+          state.myJobs.unshift(job);
+        }
       }),
 
     updateJob: (id, updates) =>
@@ -54,13 +65,15 @@ export const useJobStore = create<JobState & JobActions>()(
         state.isLoadingJobs = true;
       });
       try {
-        const res = await axios.get<{ data: JobWithRelations[] }>(
+        const res = await axiosClient.get<{ data: JobWithRelations[] }>(
           `/api/jobs?walletAddress=${walletAddress}`
         );
-        set((state) => {
-          state.myJobs = res.data.data;
-          state.myJobsWallet = walletAddress;
-        });
+        if (res.data?.data) {
+          set((state) => {
+            state.myJobs = res.data.data;
+            state.myJobsWallet = walletAddress;
+          });
+        }
       } catch (err) {
         console.error("[jobStore] fetchMyJobs failed:", err);
       } finally {
@@ -69,5 +82,27 @@ export const useJobStore = create<JobState & JobActions>()(
         });
       }
     },
+
+    setActiveJobId: (id) =>
+      set((state) => {
+        state.activeJobId = id;
+      }),
+
+    addNewlyDelivered: (id) =>
+      set((state) => {
+        if (!state.newlyDeliveredIds.includes(id)) {
+          state.newlyDeliveredIds.push(id);
+        }
+      }),
+
+    markJobViewed: (id) =>
+      set((state) => {
+        state.newlyDeliveredIds = state.newlyDeliveredIds.filter((x) => x !== id);
+      }),
+
+    resumeJob: (jobId) =>
+      set((state) => {
+        state.activeJobId = jobId;
+      }),
   }))
 );

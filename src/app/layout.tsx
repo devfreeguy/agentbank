@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Syne, DM_Sans, IBM_Plex_Mono } from "next/font/google";
 import { Providers } from "@/app/providers";
+import { ClientLayout } from "@/components/layout/ClientLayout";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const syne = Syne({
@@ -39,9 +41,10 @@ export default function RootLayout({
     >
       <body>
         <Providers>
-          <ScrollArea className="h-screen">
-            {children}
-          </ScrollArea>
+          <ClientLayout>
+            <ScrollArea className="h-screen pb-16">{children}</ScrollArea>
+            <Toaster position="bottom-center" />
+          </ClientLayout>
         </Providers>
       </body>
     </html>

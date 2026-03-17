@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { ChevronLeft, AlertCircle } from "lucide-react";
-import axios from "axios";
+import { isAxiosError } from "axios";
+import axiosClient from "@/lib/axiosClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -84,7 +85,7 @@ export function AgentSetupStep({
 
     let agent: AgentPublic;
     try {
-      const agentRes = await axios.post<{ data: AgentPublic }>("/api/agents", {
+      const agentRes = await axiosClient.post<{ data: AgentPublic }>("/api/agents", {
         ownerId,
         name: form.name || "Unnamed Agent",
         systemPrompt: form.prompt,
@@ -95,7 +96,7 @@ export function AgentSetupStep({
       setDeployedWallet(agent.walletAddress);
       addAgent(agent);
     } catch (err) {
-      const message = axios.isAxiosError(err)
+      const message = isAxiosError(err)
         ? (err.response?.data?.error ?? "Failed to deploy agent")
         : "Failed to deploy agent";
       setDeployError(message);
@@ -105,7 +106,7 @@ export function AgentSetupStep({
 
     try {
       const role = isClientAlso ? "BOTH" : "OWNER";
-      await axios.patch(`/api/users/me?walletAddress=${walletAddress}`, { role });
+      await axiosClient.patch(`/api/users/me?walletAddress=${walletAddress}`, { role });
     } catch {
       // non-critical, continue to success
     }

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import axios from "axios";
+import axiosClient from "@/lib/axiosClient";
 import type { WalletUser } from "@/types/index";
 
 interface UserState {
@@ -39,12 +39,14 @@ export const useUserStore = create<UserState & UserActions>()(
         state.isLoading = true;
       });
       try {
-        const res = await axios.post<{ data: WalletUser }>("/api/auth/connect", {
+        const res = await axiosClient.post<{ data: WalletUser }>("/api/auth/connect", {
           walletAddress,
         });
-        set((state) => {
-          state.user = res.data.data;
-        });
+        if (res.data?.data) {
+          set((state) => {
+            state.user = res.data.data;
+          });
+        }
       } catch (err) {
         console.error("[userStore] syncUser failed:", err);
       } finally {
@@ -62,13 +64,15 @@ export const useUserStore = create<UserState & UserActions>()(
         state.isLoading = true;
       });
       try {
-        const res = await axios.get<{ data: WalletUser }>(
+        const res = await axiosClient.get<{ data: WalletUser }>(
           `/api/users/me?walletAddress=${walletAddress}`
         );
-        set((state) => {
-          state.user = res.data.data;
-          state.hydrated = true;
-        });
+        if (res.data?.data) {
+          set((state) => {
+            state.user = res.data.data;
+            state.hydrated = true;
+          });
+        }
       } catch (err) {
         console.error("[userStore] fetchUser failed:", err);
         set((state) => {
@@ -83,12 +87,14 @@ export const useUserStore = create<UserState & UserActions>()(
 
     markOnboarded: async (walletAddress) => {
       try {
-        const res = await axios.post<{ data: WalletUser }>("/api/users/onboarded", {
+        const res = await axiosClient.post<{ data: WalletUser }>("/api/users/onboarded", {
           walletAddress,
         });
-        set((state) => {
-          state.user = res.data.data;
-        });
+        if (res.data?.data) {
+          set((state) => {
+            state.user = res.data.data;
+          });
+        }
       } catch (err) {
         console.error("[userStore] markOnboarded failed:", err);
       }

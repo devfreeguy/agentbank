@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import axios from "axios";
+import axiosClient from "@/lib/axiosClient";
 import type { AgentPublic } from "@/types/index";
 
 interface AgentState {
@@ -81,11 +81,13 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         state.isLoadingAgents = true;
       });
       try {
-        const res = await axios.get<{ data: AgentPublic[] }>("/api/agents");
-        set((state) => {
-          state.agents = res.data.data;
-          state.lastFetchedAt = Date.now();
-        });
+        const res = await axiosClient.get<{ data: AgentPublic[] }>("/api/agents");
+        if (res.data?.data) {
+          set((state) => {
+            state.agents = res.data.data;
+            state.lastFetchedAt = Date.now();
+          });
+        }
       } catch (err) {
         console.error("[agentStore] fetchAgents failed:", err);
       } finally {
@@ -103,13 +105,15 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         state.isLoadingMyAgents = true;
       });
       try {
-        const res = await axios.get<{ data: AgentPublic[] }>(
+        const res = await axiosClient.get<{ data: AgentPublic[] }>(
           `/api/agents?ownerId=${ownerId}`
         );
-        set((state) => {
-          state.myAgents = res.data.data;
-          state.myAgentsOwnerId = ownerId;
-        });
+        if (res.data?.data) {
+          set((state) => {
+            state.myAgents = res.data.data;
+            state.myAgentsOwnerId = ownerId;
+          });
+        }
       } catch (err) {
         console.error("[agentStore] fetchMyAgents failed:", err);
       } finally {
@@ -124,12 +128,14 @@ export const useAgentStore = create<AgentState & AgentActions>()(
       if (agentBalances[agentId] !== undefined) return;
 
       try {
-        const res = await axios.get<{ data: { balance: string; walletAddress: string } }>(
+        const res = await axiosClient.get<{ data: { balance: string; walletAddress: string } }>(
           `/api/agents/${agentId}/balance`
         );
-        set((state) => {
-          state.agentBalances[agentId] = res.data.data.balance;
-        });
+        if (res.data?.data) {
+          set((state) => {
+            state.agentBalances[agentId] = res.data.data.balance;
+          });
+        }
       } catch (err) {
         console.error("[agentStore] fetchAgentBalance failed:", err);
       }

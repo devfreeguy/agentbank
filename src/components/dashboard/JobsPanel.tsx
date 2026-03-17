@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { JobCard } from "@/components/dashboard/JobCard";
 import { useJobs } from "@/hooks/useJobs";
+import { useJobStore } from "@/store/jobStore";
 
 interface JobsPanelProps {
   walletAddress: string;
@@ -14,6 +15,7 @@ interface JobsPanelProps {
 
 export function JobsPanel({ walletAddress }: JobsPanelProps) {
   const { myJobs, isLoadingJobs, fetchMyJobs } = useJobs();
+  const { newlyDeliveredIds, markJobViewed } = useJobStore();
 
   useEffect(() => {
     if (walletAddress) fetchMyJobs(walletAddress);
@@ -31,12 +33,12 @@ export function JobsPanel({ walletAddress }: JobsPanelProps) {
   if (isLoadingJobs) {
     return (
       <div>
-        <div className="grid grid-cols-4 max-[900px]:grid-cols-2 gap-[10px] mb-5">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-[88px] rounded-[14px]" />)}
+        <div className="grid grid-cols-4 max-[900px]:grid-cols-2 gap-2.5 mb-5">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-22 rounded-[14px]" />)}
         </div>
         <div className="flex flex-col gap-2">
           {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className={`h-[76px] rounded-[12px] ${i === 3 ? "w-4/5" : ""}`} />
+            <Skeleton key={i} className={`h-19 rounded-[12px] ${i === 3 ? "w-4/5" : ""}`} />
           ))}
         </div>
       </div>
@@ -46,15 +48,15 @@ export function JobsPanel({ walletAddress }: JobsPanelProps) {
   // --- Empty ---
   if (!isLoadingJobs && myJobs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-[52px] px-6 text-center border border-dashed border-[var(--border-med)] rounded-[14px] mb-[22px]">
-        <div className="text-[30px] mb-[14px] opacity-45">💼</div>
-        <h3 className="font-head text-[15px] font-semibold mb-[7px]">No jobs yet</h3>
-        <p className="text-[13px] text-muted-foreground leading-[1.65] max-w-[260px] mb-5 font-light">
+      <div className="flex flex-col items-center justify-center py-13 px-6 text-center border border-dashed border-(--border-med) rounded-[14px] mb-5.5">
+        <div className="text-[30px] mb-3.5 opacity-45">💼</div>
+        <h3 className="font-head text-[15px] font-semibold mb-1.75">No jobs yet</h3>
+        <p className="text-[13px] text-muted-foreground leading-[1.65] max-w-65 mb-5 font-light">
           Browse the job board and hire an agent for your first task. Pay in USDT and receive completed work in minutes.
         </p>
         <Link
           href="/jobs"
-          className="inline-flex items-center gap-1.5 bg-[var(--orange)] text-white text-[13px] font-medium px-4 py-[9px] rounded-[8px] hover:opacity-90 transition-opacity no-underline"
+          className="inline-flex items-center gap-1.5 bg-(--orange) text-white text-[13px] font-medium px-4 py-2.25 rounded-[8px] hover:opacity-90 transition-opacity no-underline"
         >
           <Share2 size={13} strokeWidth={1.4} />
           Browse the job board
@@ -64,20 +66,10 @@ export function JobsPanel({ walletAddress }: JobsPanelProps) {
   }
 
   return (
-    <div>
-      {/* Tab actions */}
-      <div className="flex justify-end mb-[18px]">
-        <Link
-          href="/jobs"
-          className="inline-flex items-center gap-1.5 bg-[var(--orange)] text-white text-[13px] font-medium px-4 py-[9px] rounded-[8px] hover:opacity-90 transition-opacity no-underline"
-        >
-          <Share2 size={13} strokeWidth={1.4} />
-          Browse agents
-        </Link>
-      </div>
+    <div className="w-full">
 
       {/* Stats */}
-      <div className="grid grid-cols-4 max-[900px]:grid-cols-2 gap-[10px] mb-5">
+      <div className="w-full grid grid-cols-4 max-[900px]:grid-cols-2 gap-2.5 mb-5">
         <StatCard label="Total jobs" value={String(totalJobs)} unit="all time" variant="neutral" />
         <StatCard label="Active" value={String(active)} unit="in progress" variant="orange" />
         <StatCard
@@ -96,9 +88,14 @@ export function JobsPanel({ walletAddress }: JobsPanelProps) {
       </div>
 
       {/* Jobs list */}
-      <div className="flex flex-col gap-2 mb-[22px]">
+      <div className="flex flex-col gap-2 mb-5.5">
         {myJobs.map((job) => (
-          <JobCard key={job.id} job={job} />
+          <JobCard
+            key={job.id}
+            job={job}
+            isNew={newlyDeliveredIds.includes(job.id)}
+            onViewed={() => markJobViewed(job.id)}
+          />
         ))}
       </div>
     </div>

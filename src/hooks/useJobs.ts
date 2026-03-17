@@ -1,8 +1,33 @@
 import { useJobStore } from "@/store/jobStore";
 
 export function useJobs() {
-  const { myJobs, activeJob, isLoadingJobs, fetchMyJobs, addJob, updateJob, setActiveJob } =
-    useJobStore();
+  const {
+    myJobs,
+    activeJob,
+    isLoadingJobs,
+    activeJobId,
+    newlyDeliveredIds,
+    fetchMyJobs,
+    addJob,
+    updateJob,
+    setActiveJob,
+    setActiveJobId,
+    markJobViewed,
+    resumeJob,
+  } = useJobStore();
 
-  return { myJobs, activeJob, isLoadingJobs, fetchMyJobs, addJob, updateJob, setActiveJob };
+  return {
+    myJobs,
+    activeJob,
+    isLoadingJobs,
+    activeJobId,
+    newlyDeliveredIds,
+    fetchMyJobs,
+    addJob,
+    updateJob,
+    setActiveJob,
+    setActiveJobId,
+    markJobViewed,
+    resumeJob,
+  };
 }

@@ -18,7 +18,7 @@ import { useUser } from "@/hooks/useUser";
 import { PublicFooter } from "@/components/landing/PublicFooter";
 
 export default function AuthPage() {
-  const { isConnected, isHydrated, user, hydrated, syncUser, address } = useUser();
+  const { isConnected, user, hydrated, syncUser, address } = useUser();
   const router = useRouter();
   const [faqOpen, setFaqOpen] = useState(false);
 
@@ -38,8 +38,8 @@ export default function AuthPage() {
     }
   }, [isConnected, address, user, hydrated, syncUser, router]);
 
-  // Render nothing while wagmi is rehydrating or already connected (redirect in progress)
-  if (!isHydrated || isConnected) return null;
+  // Render nothing while redirect is in progress
+  if (isConnected) return null;
 
   return (
     <div className="relative min-h-screen bg-background flex flex-col">

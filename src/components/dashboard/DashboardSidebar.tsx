@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutGrid, Share2, FileText, Settings } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LayoutGrid, Share2, FileText, Settings, LogOut } from "lucide-react";
+import { useDisconnect } from "wagmi";
 import { LogoMark } from "@/components/shared/LogoMark";
 import { cn } from "@/lib/utils";
 import { formatAddress } from "@/utils/format";
+import { useUser } from "@/hooks/useUser";
 
 interface DashboardSidebarProps {
   walletAddress: string;
@@ -20,6 +22,15 @@ const NAV = [
 
 export function DashboardSidebar({ walletAddress }: DashboardSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { disconnect } = useDisconnect();
+  const { clearUser } = useUser();
+
+  function handleDisconnect() {
+    disconnect();
+    clearUser();
+    router.push("/");
+  }
 
   function copyAddress() {
     if (walletAddress) navigator.clipboard.writeText(walletAddress);
@@ -30,15 +41,15 @@ export function DashboardSidebar({ walletAddress }: DashboardSidebarProps) {
       {/* Logo */}
       <Link
         href="/"
-        className="flex items-center gap-[9px] px-5 py-[22px] pb-5 border-b border-border font-head text-[16px] font-semibold text-foreground no-underline"
+        className="flex items-center gap-2.25 px-5 py-5.5 pb-5 border-b border-border font-head text-[16px] font-semibold text-foreground no-underline"
       >
         <LogoMark size={28} />
         AgentBank
       </Link>
 
       {/* Nav */}
-      <nav className="flex-1 p-[10px] flex flex-col gap-px">
-        <div className="text-[10px] text-[var(--hint)] uppercase tracking-[.08em] px-2 py-[10px] pb-[5px] font-medium">
+      <nav className="flex-1 p-2.5 flex flex-col gap-px">
+        <div className="text-[10px] text-(--hint) uppercase tracking-[.08em] px-2 py-2.5 pb-1.25 font-medium">
           Menu
         </div>
         {NAV.map(({ href, label, icon: Icon }) => {
@@ -48,9 +59,9 @@ export function DashboardSidebar({ walletAddress }: DashboardSidebarProps) {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-[10px] px-[10px] py-[9px] rounded-[8px] text-[13px] transition-all duration-150 border border-transparent no-underline select-none",
+                "flex items-center gap-2.5 px-2.5 py-2.25 rounded-[8px] text-[13px] transition-all duration-150 border border-transparent no-underline select-none",
                 active
-                  ? "text-[var(--orange)] bg-[var(--orange-dim)] border-[var(--orange-border)]"
+                  ? "text-(--orange) bg-(--orange-dim) border-(--orange-border)"
                   : "text-muted-foreground hover:text-foreground hover:bg-card"
               )}
             >
@@ -62,19 +73,30 @@ export function DashboardSidebar({ walletAddress }: DashboardSidebarProps) {
       </nav>
 
       {/* Wallet pill */}
-      <div className="px-[10px] py-3 border-t border-border">
+      <div className="px-2.5 pt-3 pb-1 border-t border-border">
         <button
           onClick={copyAddress}
-          className="w-full bg-card border border-border rounded-[10px] px-3 py-[11px] text-left cursor-pointer transition-colors hover:border-[var(--border-med)] group"
+          className="w-full bg-card border border-border rounded-[10px] px-3 py-2.75 text-left cursor-pointer transition-colors hover:border-(--border-med) group"
         >
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mb-1">
-            <div className="w-[5px] h-[5px] rounded-full bg-[var(--green)]" />
+            <div className="w-1.25 h-1.25 rounded-full bg-(--green)" />
             Connected
           </div>
           <div className="font-mono text-[11px] text-foreground">
             {walletAddress ? formatAddress(walletAddress) : "—"}
           </div>
-          <div className="text-[10px] text-[var(--hint)] mt-[3px]">Click to copy</div>
+          <div className="text-[10px] text-(--hint) mt-0.75">Click to copy</div>
+        </button>
+      </div>
+
+      {/* Disconnect */}
+      <div className="px-2.5 pb-3">
+        <button
+          onClick={handleDisconnect}
+          className="w-full flex items-center gap-2.5 px-2.5 py-2.25 rounded-[8px] text-[13px] text-(--hint) transition-all duration-150 hover:text-red-500 hover:bg-[rgba(239,68,68,0.06)] cursor-pointer"
+        >
+          <LogOut size={15} strokeWidth={1.4} />
+          Disconnect
         </button>
       </div>
     </aside>

@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
     "@tetherto/wdk-secret-manager",
     "sodium-native",
   ],
+  devIndicators: {
+    position: "bottom-right",
+  },
 };
 
 export default nextConfig;

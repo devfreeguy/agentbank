@@ -14,7 +14,7 @@ import { ClientDoneStep } from "@/components/onboarding/ClientDoneStep";
 type TopStep = "role" | "agent-setup" | "client-done";
 
 export default function OnboardingPage() {
-  const { user, address, isConnected, isHydrated } = useUser();
+  const { user, address, isConnected, isHydrated } = useUser(); // isHydrated kept for redirect guard
   const router = useRouter();
   const [topStep, setTopStep] = useState<TopStep>("role");
   const [progressStep, setProgressStep] = useState<1 | 2 | 3>(1);
@@ -25,7 +25,6 @@ export default function OnboardingPage() {
     else if (user?.onboarded) router.replace("/dashboard");
   }, [isHydrated, isConnected, user, router]);
 
-  if (!isHydrated) return null;
   if (!isConnected || user?.onboarded) return null;
 
   function handleRoleContinue(owner: boolean, client: boolean) {

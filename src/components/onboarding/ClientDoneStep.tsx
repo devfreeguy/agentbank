@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { Briefcase, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import axios from "axios";
+import axiosClient from "@/lib/axiosClient";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/hooks/useUser";
 
@@ -17,7 +17,7 @@ export function ClientDoneStep({ onBack, walletAddress }: ClientDoneStepProps) {
   const { markOnboarded } = useUser();
 
   useEffect(() => {
-    axios
+    axiosClient
       .patch(`/api/users/me?walletAddress=${walletAddress}`, { role: "CLIENT" })
       .catch(console.error);
   }, [walletAddress]);

@@ -63,8 +63,9 @@ export async function executeJob(
   // Pre-condition checks — throws propagate to the caller (route handles 404/400)
   const job = await getJobById(jobId);
   if (!job) throw new Error("Job not found");
-  if (job.status !== JobStatus.PAID) {
-    throw new Error(`Expected PAID status, got ${job.status}`);
+  console.log("[runtime] job fetched:", job.id, job.status);
+  if (job.status !== JobStatus.PAID && job.status !== JobStatus.IN_PROGRESS) {
+    throw new Error(`Expected PAID or IN_PROGRESS status, got ${job.status}`);
   }
 
   // Execution phase — any throw here → FAILED
@@ -73,6 +74,7 @@ export async function executeJob(
     if (!agentSeed) throw new Error("Agent seed not found");
 
     await updateJobStatus(jobId, JobStatus.IN_PROGRESS);
+    console.log("[runtime] status set to IN_PROGRESS");
 
     // Available sub-agents (excluding self)
     const allActive = await getActiveAgents();
@@ -99,6 +101,7 @@ To delegate part of the task to a sub-agent from the list below:
 {"delegate":true,"subAgentId":"<id>","subTask":"<specific task for sub-agent>","mainTask":"<what you will synthesize using the sub-agent output>"}`;
 
     // ── First Groq call: decision ──────────────────────────────────────────────
+    console.log("[runtime] calling Groq (decision)...");
     const {
       output: decisionRaw,
       promptTokens: dPrompt,
@@ -107,6 +110,7 @@ To delegate part of the task to a sub-agent from the list below:
       decisionSystemPrompt,
       `Task: ${job.taskDescription}${subAgentContext}`
     );
+    console.log("[runtime] Groq response received, tokens:", dPrompt + dCompletion);
 
     const decision = parseDecision(decisionRaw);
 
@@ -117,6 +121,7 @@ To delegate part of the task to a sub-agent from the list below:
         calcCost(dPrompt, dCompletion),
         `Execution for job ${jobId} (${dPrompt + dCompletion} tokens)`
       );
+      console.log("[runtime] setting DELIVERED");
       await prisma.job.update({
         where: { id: jobId },
         data: { status: JobStatus.DELIVERED, output: decision.response },
@@ -136,16 +141,19 @@ To delegate part of the task to a sub-agent from the list below:
 
     if (!canDelegate) {
       // Fallback: run the task directly
+      console.log("[runtime] calling Groq (fallback — no delegate)...");
       const {
         output: fallbackOutput,
         promptTokens: fbPrompt,
         completionTokens: fbCompletion,
       } = await runAgentTask(agentSeed.systemPrompt, job.taskDescription);
+      console.log("[runtime] Groq response received, tokens:", dPrompt + dCompletion + fbPrompt + fbCompletion);
       await recordSpent(
         job.agentId,
         calcCost(dPrompt + fbPrompt, dCompletion + fbCompletion),
         `Decision + fallback execution for job ${jobId} (${dPrompt + dCompletion + fbPrompt + fbCompletion} tokens)`
       );
+      console.log("[runtime] setting DELIVERED");
       await prisma.job.update({
         where: { id: jobId },
         data: { status: JobStatus.DELIVERED, output: fallbackOutput },
@@ -173,11 +181,13 @@ To delegate part of the task to a sub-agent from the list below:
     await updateSubJobStatus(subJob.id, SubJobStatus.IN_PROGRESS);
 
     // ── Second Groq call: sub-agent executes its task ──────────────────────────
+    console.log("[runtime] calling Groq (sub-agent)...");
     const {
       output: subOutput,
       promptTokens: sPrompt,
       completionTokens: sCompletion,
     } = await runAgentTask(subAgent.systemPrompt, decision.subTask);
+    console.log("[runtime] Groq response received, tokens:", sPrompt + sCompletion);
 
     await recordSpent(
       subAgent.id,
@@ -205,6 +215,7 @@ To delegate part of the task to a sub-agent from the list below:
     });
 
     // ── Third Groq call: parent synthesizes final answer ───────────────────────
+    console.log("[runtime] calling Groq (synthesis)...");
     const {
       output: finalOutput,
       promptTokens: fPrompt,
@@ -213,6 +224,7 @@ To delegate part of the task to a sub-agent from the list below:
       agentSeed.systemPrompt,
       `Original task: ${decision.mainTask}\n\nSub-agent output:\n${subOutput}\n\nUsing the sub-agent output above, complete the original task.`
     );
+    console.log("[runtime] Groq response received, tokens:", fPrompt + fCompletion);
 
     // Record parent SPENT for decision + synthesis calls combined
     await recordSpent(
@@ -221,6 +233,7 @@ To delegate part of the task to a sub-agent from the list below:
       `Decision + synthesis calls for job ${jobId} (${dPrompt + dCompletion + fPrompt + fCompletion} tokens)`
     );
 
+    console.log("[runtime] setting DELIVERED");
     await prisma.job.update({
       where: { id: jobId },
       data: { status: JobStatus.DELIVERED, output: finalOutput },
@@ -231,6 +244,7 @@ To delegate part of the task to a sub-agent from the list below:
 
     return { output: finalOutput, status: "DELIVERED" };
   } catch (error) {
+    console.error("[runtime] FAILED:", error);
     await updateJobStatus(jobId, JobStatus.FAILED).catch(() => null);
     return { output: "", status: "FAILED" };
   }

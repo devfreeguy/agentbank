@@ -18,10 +18,21 @@ const ALREADY_PAID_STATUSES = new Set<JobStatus>([
 ]);
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse<ApiSuccess<CheckPaymentResponse> | ApiError>> {
   const { id } = await params;
+
+  // Optional txHash from wagmi-confirmed transaction
+  let bodyTxHash: string | undefined;
+  try {
+    const body = await req.json();
+    if (typeof body?.txHash === "string" && body.txHash.length > 0) {
+      bodyTxHash = body.txHash;
+    }
+  } catch {
+    // no body — fine
+  }
 
   try {
     const job = await getJobById(id);
@@ -36,6 +47,34 @@ export async function POST(
           status: job.status,
           ...(job.txHash ? { txHash: job.txHash } : {}),
         },
+      });
+    }
+
+    // If wagmi-confirmed txHash provided, trust on-chain confirmation and mark paid immediately
+    if (bodyTxHash) {
+      const priceUsdt = job.priceUsdt.toString();
+      await prisma.$transaction([
+        prisma.job.update({
+          where: { id },
+          data: { status: JobStatus.PAID, txHash: bodyTxHash },
+        }),
+        prisma.agentTransaction.create({
+          data: {
+            agentId: job.agentId,
+            type: TransactionType.EARNED,
+            amountUsdt: priceUsdt,
+            txHash: bodyTxHash,
+            description: `Payment received for job ${id}`,
+          },
+        }),
+        prisma.agent.update({
+          where: { id: job.agentId },
+          data: { totalEarned: { increment: priceUsdt } },
+        }),
+      ]);
+
+      return NextResponse.json<ApiSuccess<CheckPaymentResponse>>({
+        data: { confirmed: true, status: JobStatus.PAID, txHash: bodyTxHash },
       });
     }
 
