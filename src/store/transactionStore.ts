@@ -11,6 +11,7 @@ interface TransactionState {
 interface TransactionActions {
   setTransactions: (agentId: string, transactions: SerializedTransaction[]) => void;
   fetchTransactions: (agentId: string, force?: boolean) => Promise<void>;
+  clearTransactions: () => void;
 }
 
 export const useTransactionStore = create<TransactionState & TransactionActions>()(
@@ -47,5 +48,10 @@ export const useTransactionStore = create<TransactionState & TransactionActions>
         });
       }
     },
+
+    clearTransactions: () =>
+      set((state) => {
+        state.transactionsByAgent = {};
+      }),
   }))
 );

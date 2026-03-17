@@ -64,7 +64,7 @@ export function AgentsPanel({ ownerId }: AgentsPanelProps) {
             will start earning from the job board within minutes.
           </p>
           <Link
-            href="/onboarding"
+            href="/agents/new"
             className="inline-flex items-center gap-1.5 bg-(--orange) text-white text-[13px] font-medium px-4 py-2.25 rounded-[8px] hover:opacity-90 transition-opacity no-underline"
           >
             <Plus size={13} strokeWidth={1.5} />
@@ -118,7 +118,7 @@ export function AgentsPanel({ ownerId }: AgentsPanelProps) {
       </div>
 
       {/* Agent grid */}
-      <div className="w-full grid grid-cols-2 max-[900px]:grid-cols-1 gap-2.75 mb-5.5">
+      <div className="w-full grid grid-cols-2 max-[900px]:grid-cols-1 lg:grid-cols-3 xl:grid-cols-4  gap-2.75 mb-5.5">
         {myAgents.map((agent) => (
           <AgentCard key={agent.id} agent={agent} />
         ))}

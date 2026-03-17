@@ -22,6 +22,7 @@ interface JobActions {
   addNewlyDelivered: (id: string) => void;
   markJobViewed: (id: string) => void;
   resumeJob: (jobId: string) => void;
+  clearJobs: () => void;
 }
 
 export const useJobStore = create<JobState & JobActions>()(
@@ -103,6 +104,15 @@ export const useJobStore = create<JobState & JobActions>()(
     resumeJob: (jobId) =>
       set((state) => {
         state.activeJobId = jobId;
+      }),
+
+    clearJobs: () =>
+      set((state) => {
+        state.myJobs = [];
+        state.myJobsWallet = null;
+        state.activeJob = null;
+        state.activeJobId = null;
+        state.newlyDeliveredIds = [];
       }),
   }))
 );

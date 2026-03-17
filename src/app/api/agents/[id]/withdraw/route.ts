@@ -37,7 +37,23 @@ export async function POST(
       return NextResponse.json<ApiError>({ error: "Agent not found" }, { status: 404 });
     }
 
-    const balance = await getAgentBalance(agent.walletAddress);
+    // Check balance — handle network failures separately
+    let balance: string;
+    try {
+      balance = await getAgentBalance(agent.walletAddress);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      const isNetwork = msg.includes("fetch failed") || msg.includes("ECONNREFUSED") || msg.includes("network");
+      return NextResponse.json<ApiError>(
+        {
+          error: isNetwork
+            ? "Could not verify balance. The Polygon network may be temporarily unreachable. Please try again."
+            : msg || "Balance check failed.",
+        },
+        { status: 502 }
+      );
+    }
+
     if (parseFloat(balance) < parseFloat(amountUsdt)) {
       return NextResponse.json<ApiError>(
         {
@@ -59,9 +75,23 @@ export async function POST(
 
     return NextResponse.json<ApiSuccess<WithdrawResponse>>({ data: { txHash } });
   } catch (error) {
-    return NextResponse.json<ApiError>(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 }
-    );
+    console.error("[withdraw] error:", error);
+    const msg = error instanceof Error ? error.message : "Internal server error";
+
+    if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED")) {
+      return NextResponse.json<ApiError>(
+        { error: "Payment service is unreachable. Please try again later." },
+        { status: 502 }
+      );
+    }
+
+    // User-actionable errors → 400; system errors → 500
+    const isUserError =
+      msg.startsWith("Insufficient") ||
+      msg.startsWith("Transaction rejected") ||
+      msg.startsWith("Could not reach") ||
+      msg.startsWith("Polygon network");
+
+    return NextResponse.json<ApiError>({ error: msg }, { status: isUserError ? 400 : 500 });
   }
 }

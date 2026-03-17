@@ -6,10 +6,10 @@ import { sendUsdt, getAgentBalance } from "@/lib/wdk";
 import { prisma } from "@/lib/prisma";
 import { JobStatus, SubJobStatus, TransactionType } from "@/generated/prisma/enums";
 
-const USDT_PER_TOKEN = 0.000001;
+const USDT_PER_TOKEN = 0.00001;
 
-function calcCost(promptTokens: number, completionTokens: number): string {
-  return ((promptTokens + completionTokens) * USDT_PER_TOKEN).toFixed(6);
+function calcCost(totalTokens: number): string {
+  return (totalTokens * USDT_PER_TOKEN).toFixed(6);
 }
 
 async function recordSpent(
@@ -26,6 +26,22 @@ async function recordSpent(
       data: { totalSpent: { increment: costUsdt } },
     }),
   ]);
+}
+
+function cleanOutput(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const text =
+      typeof parsed.response === "string" ? parsed.response :
+      typeof parsed.content === "string" ? parsed.content :
+      typeof parsed.text === "string" ? parsed.text :
+      typeof parsed.result === "string" ? parsed.result :
+      null;
+    if (text !== null) return text;
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return raw;
+  }
 }
 
 type DelegateDecision =
@@ -108,7 +124,8 @@ To delegate part of the task to a sub-agent from the list below:
       completionTokens: dCompletion,
     } = await runAgentTask(
       decisionSystemPrompt,
-      `Task: ${job.taskDescription}${subAgentContext}`
+      `Task: ${job.taskDescription}${subAgentContext}`,
+      "json"
     );
     console.log("[runtime] Groq response received, tokens:", dPrompt + dCompletion);
 
@@ -116,18 +133,19 @@ To delegate part of the task to a sub-agent from the list below:
 
     // ── Scenario A: handle alone ───────────────────────────────────────────────
     if (!decision.delegate) {
+      const cleanedResponse = cleanOutput(decision.response);
       await recordSpent(
         job.agentId,
-        calcCost(dPrompt, dCompletion),
-        `Execution for job ${jobId} (${dPrompt + dCompletion} tokens)`
+        calcCost(dPrompt + dCompletion),
+        `API usage — ${dPrompt + dCompletion} tokens`
       );
       console.log("[runtime] setting DELIVERED");
       await prisma.job.update({
         where: { id: jobId },
-        data: { status: JobStatus.DELIVERED, output: decision.response },
+        data: { status: JobStatus.DELIVERED, output: cleanedResponse },
       });
       await incrementJobsCompleted(job.agentId);
-      return { output: decision.response, status: "DELIVERED" };
+      return { output: cleanedResponse, status: "DELIVERED" };
     }
 
     // ── Scenario B: delegate ───────────────────────────────────────────────────
@@ -148,18 +166,19 @@ To delegate part of the task to a sub-agent from the list below:
         completionTokens: fbCompletion,
       } = await runAgentTask(agentSeed.systemPrompt, job.taskDescription);
       console.log("[runtime] Groq response received, tokens:", dPrompt + dCompletion + fbPrompt + fbCompletion);
+      const cleanedFallback = cleanOutput(fallbackOutput);
       await recordSpent(
         job.agentId,
-        calcCost(dPrompt + fbPrompt, dCompletion + fbCompletion),
-        `Decision + fallback execution for job ${jobId} (${dPrompt + dCompletion + fbPrompt + fbCompletion} tokens)`
+        calcCost(dPrompt + dCompletion + fbPrompt + fbCompletion),
+        `API usage — ${dPrompt + dCompletion + fbPrompt + fbCompletion} tokens`
       );
       console.log("[runtime] setting DELIVERED");
       await prisma.job.update({
         where: { id: jobId },
-        data: { status: JobStatus.DELIVERED, output: fallbackOutput },
+        data: { status: JobStatus.DELIVERED, output: cleanedFallback },
       });
       await incrementJobsCompleted(job.agentId);
-      return { output: fallbackOutput, status: "DELIVERED" };
+      return { output: cleanedFallback, status: "DELIVERED" };
     }
 
     // Send USDT from parent agent to sub-agent
@@ -191,8 +210,8 @@ To delegate part of the task to a sub-agent from the list below:
 
     await recordSpent(
       subAgent.id,
-      calcCost(sPrompt, sCompletion),
-      `Sub-agent execution for sub-job ${subJob.id} (${sPrompt + sCompletion} tokens)`
+      calcCost(sPrompt + sCompletion),
+      `API usage — ${sPrompt + sCompletion} tokens`
     );
 
     await updateSubJobOutput(subJob.id, subOutput, subPaymentTxHash);
@@ -204,7 +223,7 @@ To delegate part of the task to a sub-agent from the list below:
         type: TransactionType.SUB_AGENT_PAYMENT,
         amountUsdt: subAgentPrice,
         txHash: subPaymentTxHash,
-        description: `Sub-agent payment to ${subAgent.name} for job ${jobId}`,
+        description: `Hired ${subAgent.name} for subtask`,
       },
     });
 
@@ -226,23 +245,25 @@ To delegate part of the task to a sub-agent from the list below:
     );
     console.log("[runtime] Groq response received, tokens:", fPrompt + fCompletion);
 
+    const cleanedFinal = cleanOutput(finalOutput);
+
     // Record parent SPENT for decision + synthesis calls combined
     await recordSpent(
       job.agentId,
-      calcCost(dPrompt + fPrompt, dCompletion + fCompletion),
-      `Decision + synthesis calls for job ${jobId} (${dPrompt + dCompletion + fPrompt + fCompletion} tokens)`
+      calcCost(dPrompt + dCompletion + fPrompt + fCompletion),
+      `API usage — ${dPrompt + dCompletion + fPrompt + fCompletion} tokens`
     );
 
     console.log("[runtime] setting DELIVERED");
     await prisma.job.update({
       where: { id: jobId },
-      data: { status: JobStatus.DELIVERED, output: finalOutput },
+      data: { status: JobStatus.DELIVERED, output: cleanedFinal },
     });
 
     await incrementJobsCompleted(job.agentId);
     await incrementJobsCompleted(subAgent.id);
 
-    return { output: finalOutput, status: "DELIVERED" };
+    return { output: cleanedFinal, status: "DELIVERED" };
   } catch (error) {
     console.error("[runtime] FAILED:", error);
     await updateJobStatus(jobId, JobStatus.FAILED).catch(() => null);

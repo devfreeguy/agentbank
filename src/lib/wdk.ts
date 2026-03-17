@@ -18,8 +18,14 @@ async function wdkFetch<T>(
     headers: { ...wdkHeaders(), ...(options?.headers ?? {}) },
   });
   if (!res.ok) {
-    const body = await res.text().catch(() => res.statusText);
-    throw new Error(`WDK service error (${res.status}): ${body}`);
+    let message = res.statusText;
+    try {
+      const body = await res.json() as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      // fall through to statusText
+    }
+    throw new Error(message);
   }
   return res.json() as Promise<T>;
 }
@@ -44,16 +50,10 @@ export async function createAgentWallet(): Promise<{
 // ─── Balance ──────────────────────────────────────────────────────────────────
 
 export async function getAgentBalance(walletAddress: string): Promise<string> {
-  try {
-    const data = await wdkFetch<{ balance: string; address: string }>(
-      `/wallet/balance/${walletAddress}`
-    );
-    return data.balance;
-  } catch (error) {
-    throw new Error(
-      `getAgentBalance failed: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
+  const data = await wdkFetch<{ balance: string; address: string }>(
+    `/wallet/balance/${walletAddress}`
+  );
+  return data.balance;
 }
 
 // ─── Send USDT ────────────────────────────────────────────────────────────────
@@ -63,25 +63,19 @@ export async function sendUsdt(
   toAddress: string,
   amountUsdt: string
 ): Promise<{ txHash: string }> {
-  try {
-    const agent = await prisma.agent.findUniqueOrThrow({
-      where: { id: fromAgentId },
-      select: { encryptedSeedPhrase: true },
-    });
+  const agent = await prisma.agent.findUniqueOrThrow({
+    where: { id: fromAgentId },
+    select: { encryptedSeedPhrase: true },
+  });
 
-    return await wdkFetch<{ txHash: string }>("/wallet/send", {
-      method: "POST",
-      body: JSON.stringify({
-        fromEncryptedSeed: agent.encryptedSeedPhrase,
-        toAddress,
-        amountUsdt,
-      }),
-    });
-  } catch (error) {
-    throw new Error(
-      `sendUsdt failed: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
+  return await wdkFetch<{ txHash: string }>("/wallet/send", {
+    method: "POST",
+    body: JSON.stringify({
+      fromEncryptedSeed: agent.encryptedSeedPhrase,
+      toAddress,
+      amountUsdt,
+    }),
+  });
 }
 
 // ─── Payment verification ─────────────────────────────────────────────────────

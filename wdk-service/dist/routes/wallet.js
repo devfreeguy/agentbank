@@ -25,18 +25,30 @@ function deriveKey() {
 // Format: iv_hex:auth_tag_hex:ciphertext_hex
 function encryptSeed(seedPhrase) {
     const key = deriveKey();
+    console.log("[encrypt] derived key (first 4 bytes):", key.slice(0, 4).toString("hex"));
     const iv = crypto_1.default.randomBytes(12);
     const cipher = crypto_1.default.createCipheriv("aes-256-gcm", key, iv);
     const ciphertext = Buffer.concat([cipher.update(seedPhrase, "utf8"), cipher.final()]);
     const authTag = cipher.getAuthTag();
-    return `${iv.toString("hex")}:${authTag.toString("hex")}:${ciphertext.toString("hex")}`;
+    const result = `${iv.toString("hex")}:${authTag.toString("hex")}:${ciphertext.toString("hex")}`;
+    console.log("[encrypt] iv length:", iv.toString("hex").length, "authTag length:", authTag.toString("hex").length, "ciphertext length:", ciphertext.toString("hex").length);
+    return result;
 }
 function decryptSeed(encryptedSeed) {
-    const [ivHex, authTagHex, ciphertextHex] = encryptedSeed.split(":");
+    const parts = encryptedSeed.split(":");
+    if (parts.length !== 3) {
+        throw new Error(`Invalid encrypted seed format: expected 3 parts separated by ':', got ${parts.length}`);
+    }
+    const [ivHex, authTagHex, ciphertextHex] = parts;
+    console.log("[decrypt] iv length:", ivHex.length, "(expect 24)");
+    console.log("[decrypt] authTag length:", authTagHex.length, "(expect 32)");
+    console.log("[decrypt] ciphertext length:", ciphertextHex.length);
     if (!ivHex || !authTagHex || !ciphertextHex)
-        throw new Error("Invalid encrypted seed format");
+        throw new Error("Invalid encrypted seed format: one or more parts are empty");
     const key = deriveKey();
+    console.log("[decrypt] derived key (first 4 bytes):", key.slice(0, 4).toString("hex"));
     const decipher = crypto_1.default.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+    // setAuthTag MUST be called before update/final
     decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
     return Buffer.concat([
         decipher.update(Buffer.from(ciphertextHex, "hex")),
@@ -68,6 +80,8 @@ router.post("/send", async (req, res) => {
         res.status(400).json({ error: "fromEncryptedSeed, toAddress, and amountUsdt are required" });
         return;
     }
+    console.log("[decrypt] encryptedSeed length:", fromEncryptedSeed.length);
+    console.log("[decrypt] encryptedSeed preview:", fromEncryptedSeed.slice(0, 40));
     try {
         const seedPhrase = decryptSeed(fromEncryptedSeed);
         const amountBaseUnits = BigInt(Math.round(parseFloat(amountUsdt) * 10 ** USDT_DECIMALS));

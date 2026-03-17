@@ -7,16 +7,22 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY!,
 });
 
+const MARKDOWN_INSTRUCTION =
+  "\n\nAlways respond in clear, well-formatted markdown. Never wrap your response in JSON. Never add a preamble like 'Here is my response'. Go straight to the content.";
+
 export async function runAgentTask(
   systemPrompt: string,
-  taskDescription: string
+  taskDescription: string,
+  format: "markdown" | "json" = "markdown"
 ): Promise<{ output: string; promptTokens: number; completionTokens: number }> {
   try {
+    const resolvedPrompt =
+      format === "markdown" ? systemPrompt + MARKDOWN_INSTRUCTION : systemPrompt;
     const completion = await groq.chat.completions.create({
       model: AGENT_MODEL,
       max_tokens: MAX_TOKENS,
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: resolvedPrompt },
         { role: "user", content: taskDescription },
       ],
     });

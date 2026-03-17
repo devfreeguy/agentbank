@@ -1,7 +1,15 @@
 import { USDT_SYMBOL } from "@/constants/contracts";
 
 export function formatUsdt(amount: string | number): string {
-  return `${Number(amount).toFixed(2)} ${USDT_SYMBOL}`;
+  const n = Number(amount);
+  if (n !== 0 && Math.abs(n) < 0.01) {
+    return `${n.toFixed(4)} ${USDT_SYMBOL}`;
+  }
+  const formatted = n.toFixed(2);
+  if (formatted === "0.00" || formatted === "-0.00") {
+    return `<0.01 ${USDT_SYMBOL}`;
+  }
+  return `${formatted} ${USDT_SYMBOL}`;
 }
 
 export function formatAddress(address: string): string {

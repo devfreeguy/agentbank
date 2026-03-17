@@ -14,6 +14,7 @@ export function useAgents() {
     addAgent,
     updateAgent,
     setSelectedAgent,
+    clearAgents,
   } = useAgentStore();
 
   return {
@@ -29,5 +30,6 @@ export function useAgents() {
     addAgent,
     updateAgent,
     setSelectedAgent,
+    clearAgents,
   };
 }

@@ -24,6 +24,7 @@ interface AgentActions {
   fetchAgents: (force?: boolean) => Promise<void>;
   fetchMyAgents: (ownerId: string, force?: boolean) => Promise<void>;
   fetchAgentBalance: (agentId: string) => Promise<void>;
+  clearAgents: () => void;
 }
 
 export const useAgentStore = create<AgentState & AgentActions>()(
@@ -140,5 +141,15 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         console.error("[agentStore] fetchAgentBalance failed:", err);
       }
     },
+
+    clearAgents: () =>
+      set((state) => {
+        state.agents = [];
+        state.myAgents = [];
+        state.myAgentsOwnerId = null;
+        state.agentBalances = {};
+        state.lastFetchedAt = null;
+        state.selectedAgent = null;
+      }),
   }))
 );

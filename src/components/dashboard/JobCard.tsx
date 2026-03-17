@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/utils/format";
 import {
@@ -146,10 +147,22 @@ export function JobCard({ job, isNew, onViewed }: JobCardProps) {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Job output</DialogTitle>
-            <DialogDescription><p className="line-clamp-2">{job.taskDescription}</p></DialogDescription>
+            <DialogDescription className="line-clamp-2">{job.taskDescription}</DialogDescription>
           </DialogHeader>
-          <div className="bg-card border border-border rounded-[10px] p-4 text-[13px] text-foreground leading-[1.7] max-h-90 overflow-y-auto whitespace-pre-wrap font-mono">
-            {job.output ?? "No output recorded."}
+          <div className="bg-card border border-border rounded-[10px] p-4 max-h-90 overflow-y-auto">
+            {job.output ? (
+              job.output.trimStart().startsWith("{") || job.output.trimStart().startsWith("[") ? (
+                <pre className="font-mono text-[12px] text-muted-foreground leading-[1.6] whitespace-pre-wrap break-all">
+                  {job.output}
+                </pre>
+              ) : (
+                <div className="prose prose-sm prose-invert max-w-none text-[13px] leading-[1.7] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_code]:bg-secondary [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-secondary [&_pre]:p-3 [&_pre]:rounded-[8px] [&_pre]:overflow-x-auto">
+                  <ReactMarkdown>{job.output}</ReactMarkdown>
+                </div>
+              )
+            ) : (
+              <p className="text-[13px] text-muted-foreground">No output recorded.</p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -14,6 +14,7 @@ export function useJobs() {
     setActiveJobId,
     markJobViewed,
     resumeJob,
+    clearJobs,
   } = useJobStore();
 
   return {
@@ -29,5 +30,6 @@ export function useJobs() {
     setActiveJobId,
     markJobViewed,
     resumeJob,
+    clearJobs,
   };
 }

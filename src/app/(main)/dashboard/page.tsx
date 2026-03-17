@@ -86,7 +86,7 @@ export default function DashboardPage() {
                 className="bg-(--orange) text-white text-[13px] px-4 py-2.25 max-sm:px-3 h-auto rounded-[8px] hover:opacity-90"
                 asChild
               >
-                <Link href="/onboarding">
+                <Link href="/agents/new">
                   <Plus size={13} strokeWidth={1.5} />
                   <span className="max-sm:hidden">Deploy agent</span>
                 </Link>

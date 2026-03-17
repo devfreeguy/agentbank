@@ -64,7 +64,7 @@ export async function POST(
             type: TransactionType.EARNED,
             amountUsdt: priceUsdt,
             txHash: bodyTxHash,
-            description: `Payment received for job ${id}`,
+            description: `Task completed — ${job.taskDescription.slice(0, 40)}${job.taskDescription.length > 40 ? "…" : ""}`,
           },
         }),
         prisma.agent.update({

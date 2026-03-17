@@ -1,9 +1,15 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AgentPublic, JobWithRelations } from "@/types/index";
+
+function isJsonOutput(output: string): boolean {
+  const trimmed = output.trimStart();
+  return trimmed.startsWith("{") || trimmed.startsWith("[");
+}
 
 interface HireStep6DeliveredProps {
   agent: AgentPublic;
@@ -24,6 +30,9 @@ export function HireStep6Delivered({
   onHireAgain,
   onDashboard,
 }: HireStep6DeliveredProps) {
+  const output = activeJob.output ?? "";
+  const looksLikeJson = isJsonOutput(output);
+
   return (
     <>
       <div className="flex-1 overflow-y-auto px-5 py-5.5 [scrollbar-width:thin] [scrollbar-color:var(--bg4)_transparent]">
@@ -51,15 +60,27 @@ export function HireStep6Delivered({
               Task output
             </span>
             <button
-              onClick={() => copyText(activeJob.output ?? "")}
+              onClick={() => copyText(output)}
               className="flex items-center gap-1.5 px-2.5 py-1 bg-secondary border border-border rounded-[5px] text-[11px] text-muted-foreground hover:border-(--border-med) transition-colors cursor-pointer"
             >
               <Copy size={11} strokeWidth={1.3} />
               Copy
             </button>
           </div>
-          <div className="text-[13px] text-muted-foreground leading-[1.7] font-light max-h-60 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--bg4)_transparent]">
-            {activeJob.output ?? "No output received."}
+          <div className="max-h-60 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--bg4)_transparent]">
+            {output ? (
+              looksLikeJson ? (
+                <pre className="font-mono text-[12px] text-muted-foreground leading-[1.6] whitespace-pre-wrap break-all">
+                  {output}
+                </pre>
+              ) : (
+                <div className="prose prose-sm prose-invert max-w-none text-[13px] leading-[1.7] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_code]:bg-secondary [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-secondary [&_pre]:p-3 [&_pre]:rounded-[8px] [&_pre]:overflow-x-auto">
+                  <ReactMarkdown>{output}</ReactMarkdown>
+                </div>
+              )
+            ) : (
+              <p className="text-[13px] text-muted-foreground">No output received.</p>
+            )}
           </div>
         </div>
       </div>

@@ -8,6 +8,9 @@ import { LogoMark } from "@/components/shared/LogoMark";
 import { cn } from "@/lib/utils";
 import { formatAddress } from "@/utils/format";
 import { useUser } from "@/hooks/useUser";
+import { useAgentStore } from "@/store/agentStore";
+import { useJobStore } from "@/store/jobStore";
+import { useTransactionStore } from "@/store/transactionStore";
 
 interface DashboardSidebarProps {
   walletAddress: string;
@@ -25,10 +28,16 @@ export function DashboardSidebar({ walletAddress }: DashboardSidebarProps) {
   const router = useRouter();
   const { disconnect } = useDisconnect();
   const { clearUser } = useUser();
+  const clearAgents = useAgentStore((s) => s.clearAgents);
+  const clearJobs = useJobStore((s) => s.clearJobs);
+  const clearTransactions = useTransactionStore((s) => s.clearTransactions);
 
   function handleDisconnect() {
     disconnect();
     clearUser();
+    clearAgents();
+    clearJobs();
+    clearTransactions();
     router.push("/");
   }
 

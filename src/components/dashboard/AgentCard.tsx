@@ -18,8 +18,9 @@ import { useAgentStore } from "@/store/agentStore";
 import type { AgentPublic } from "@/types/index";
 import { formatAddress } from "@/utils/format";
 import { isAxiosError } from "axios";
-import { ArrowUp, Pause, Play } from "lucide-react";
+import { ArrowUp, Loader2, Pause, Play } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface AgentCardProps {
   agent: AgentPublic;
@@ -58,10 +59,26 @@ export function AgentCard({ agent }: AgentCardProps) {
     setWithdrawing(true);
     setWithdrawError("");
     try {
-      await axiosClient.post(`/api/agents/${agent.id}/withdraw`, {
-        toAddress: withdrawTo,
-        amountUsdt: withdrawAmt,
+      const res = await axiosClient.post<{ data: { txHash: string } }>(
+        `/api/agents/${agent.id}/withdraw`,
+        { toAddress: withdrawTo, amountUsdt: withdrawAmt }
+      );
+      const txHash = res.data.data.txHash;
+      const short = `${txHash.slice(0, 10)}...${txHash.slice(-8)}`;
+
+      toast.success("Withdrawal successful", {
+        description: (
+          <a
+            href={`https://polygonscan.com/tx/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline opacity-80 hover:opacity-100"
+          >
+            {short}
+          </a>
+        ),
       });
+
       setWithdrawOpen(false);
       setWithdrawTo("");
       setWithdrawAmt("");
@@ -235,11 +252,24 @@ export function AgentCard({ agent }: AgentCardProps) {
               />
             </div>
             {withdrawError && (
-              <p className="text-[12px] text-red-500">{withdrawError}</p>
+              <div className="text-[12px] text-red-500 space-y-1">
+                <p>{withdrawError}</p>
+                {withdrawError.includes("MATIC") && (
+                  <p className="font-mono text-[11px] text-muted-foreground break-all">
+                    Agent wallet: {agent.walletAddress}
+                  </p>
+                )}
+              </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="secondary" size="default" className="h-auto py-2.25 px-4 text-[13px]" onClick={() => setWithdrawOpen(false)}>
+            <Button
+              variant="secondary"
+              size="default"
+              className="h-auto py-2.25 px-4 text-[13px]"
+              onClick={() => setWithdrawOpen(false)}
+              disabled={withdrawing}
+            >
               Cancel
             </Button>
             <Button
@@ -248,7 +278,8 @@ export function AgentCard({ agent }: AgentCardProps) {
               onClick={handleWithdraw}
               disabled={withdrawing || !withdrawTo || !withdrawAmt}
             >
-              {withdrawing ? "Sending…" : "Confirm withdrawal"}
+              {withdrawing && <Loader2 size={13} className="animate-spin" />}
+              {withdrawing ? "Sending..." : "Confirm withdrawal"}
             </Button>
           </DialogFooter>
         </DialogContent>
