@@ -3,12 +3,26 @@
 import { Loader2 } from "lucide-react";
 
 interface HireStep4PollingProps {
-  state: "wallet" | "mining" | "confirming";
+  state: "creating" | "wallet" | "mining" | "confirming";
   shortTxHash: string;
   writeTxHash?: string;
 }
 
 export function HireStep4Polling({ state, shortTxHash, writeTxHash }: HireStep4PollingProps) {
+  if (state === "creating") {
+    return (
+      <div className="flex flex-col items-center gap-3.5 py-6 text-center">
+        <Loader2 size={36} strokeWidth={1.5} className="text-(--orange) animate-spin" />
+        <div>
+          <div className="font-head text-[15px] font-semibold mb-1">Creating job…</div>
+          <div className="text-[12px] text-muted-foreground font-light leading-[1.6]">
+            Setting up your task
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (state === "wallet") {
     return (
       <div className="flex flex-col items-center gap-3.5 py-6 text-center">

@@ -1,15 +1,13 @@
 import { useEffect } from "react";
-import { useAccount } from "wagmi";
-import { useUserStore } from "@/store/userStore";
+import { useUser } from "@/hooks/useUser";
 
 export function useCurrentUser() {
-  const { address, isConnected } = useAccount();
-  const { syncUser } = useUserStore();
+  const { address, isConnected, signIn } = useUser();
 
   useEffect(() => {
     if (!isConnected || !address) return;
-    syncUser(address);
-  }, [isConnected, address, syncUser]);
+    signIn(address).catch(() => {});
+  }, [isConnected, address, signIn]);
 
   return { address, isConnected };
 }

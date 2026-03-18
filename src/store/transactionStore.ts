@@ -4,44 +4,44 @@ import axiosClient from "@/lib/axiosClient";
 import type { SerializedTransaction } from "@/utils/serialize";
 
 interface TransactionState {
-  transactionsByAgent: Record<string, SerializedTransaction[]>;
+  allTransactions: SerializedTransaction[];
   isLoading: boolean;
 }
 
 interface TransactionActions {
-  setTransactions: (agentId: string, transactions: SerializedTransaction[]) => void;
-  fetchTransactions: (agentId: string, force?: boolean) => Promise<void>;
+  setAllTransactions: (transactions: SerializedTransaction[]) => void;
+  fetchAllTransactions: (force?: boolean) => Promise<void>;
   clearTransactions: () => void;
 }
 
 export const useTransactionStore = create<TransactionState & TransactionActions>()(
   immer((set, get) => ({
-    transactionsByAgent: {},
+    allTransactions: [],
     isLoading: false,
 
-    setTransactions: (agentId, transactions) =>
+    setAllTransactions: (transactions) =>
       set((state) => {
-        state.transactionsByAgent[agentId] = transactions;
+        state.allTransactions = transactions;
       }),
 
-    fetchTransactions: async (agentId, force = false) => {
-      const { transactionsByAgent } = get();
-      if (!force && transactionsByAgent[agentId] !== undefined) return;
+    fetchAllTransactions: async (force = false) => {
+      const { allTransactions } = get();
+      if (!force && allTransactions.length > 0) return;
 
       set((state) => {
         state.isLoading = true;
       });
       try {
         const res = await axiosClient.get<{ data: SerializedTransaction[] }>(
-          `/api/agents/${agentId}/transactions`
+          `/api/transactions`
         );
         if (res.data?.data) {
           set((state) => {
-            state.transactionsByAgent[agentId] = res.data.data;
+            state.allTransactions = res.data.data;
           });
         }
       } catch (err) {
-        console.error("[transactionStore] fetchTransactions failed:", err);
+        console.error("[transactionStore] fetchAllTransactions failed:", err);
       } finally {
         set((state) => {
           state.isLoading = false;
@@ -51,7 +51,7 @@ export const useTransactionStore = create<TransactionState & TransactionActions>
 
     clearTransactions: () =>
       set((state) => {
-        state.transactionsByAgent = {};
+        state.allTransactions = [];
       }),
   }))
 );

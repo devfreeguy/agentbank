@@ -40,14 +40,14 @@ async function tick(jobId: string) {
     const store = useJobStore.getState();
 
     if (job.status === "DELIVERED") {
+      // Capture callbacks BEFORE stopJobPoll, which deletes them
+      const cbs = callbacks.get(jobId);
       stopJobPoll(jobId);
       store.updateJob(jobId, job);
       store.addNewlyDelivered(jobId);
       store.setActiveJobId(null);
-      const cbs = callbacks.get(jobId);
-      callbacks.delete(jobId);
       cbs?.onDelivered?.(job);
-      // Only show toast if sheet is closed (no onDelivered callback)
+      // Only show toast if no onDelivered callback (e.g. card not in view)
       if (!cbs?.onDelivered) {
         toast("Task delivered!", {
           description: `${job.agent.name} completed your task.`,
@@ -59,11 +59,11 @@ async function tick(jobId: string) {
         });
       }
     } else if (job.status === "FAILED") {
+      // Capture callbacks BEFORE stopJobPoll, which deletes them
+      const cbs = callbacks.get(jobId);
       stopJobPoll(jobId);
       store.updateJob(jobId, job);
       store.setActiveJobId(null);
-      const cbs = callbacks.get(jobId);
-      callbacks.delete(jobId);
       cbs?.onFailed?.(job);
       if (!cbs?.onFailed) {
         toast.error("Task failed", {
@@ -81,10 +81,10 @@ async function tick(jobId: string) {
 
 export function startJobPoll(jobId: string) {
   if (polls.has(jobId)) return; // already running
-  // Kick immediately, then on interval
-  tick(jobId);
+  // Register entry first so tick() doesn't bail on the immediate call
   const interval = setInterval(() => tick(jobId), POLL_INTERVAL_MS);
   polls.set(jobId, { interval, startedAt: Date.now() });
+  tick(jobId);
 }
 
 export function stopJobPoll(jobId: string) {

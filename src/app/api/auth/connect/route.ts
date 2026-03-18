@@ -1,33 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyMessage } from "viem";
 import { upsertUser } from "@/lib/db/users";
-import { connectSchema } from "@/lib/validations/userSchema";
+import { setSessionCookie, consumeNonce } from "@/lib/session";
 import type { ApiError, ApiSuccess, WalletUser } from "@/types/index";
 
 export async function POST(req: NextRequest): Promise<NextResponse<ApiSuccess<WalletUser> | ApiError>> {
-  let body: unknown;
+  let body: { walletAddress?: string; signature?: string } = {};
   try {
     body = await req.json();
   } catch {
     return NextResponse.json<ApiError>({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const parsed = connectSchema.safeParse(body);
-  if (!parsed.success) {
+  const { walletAddress, signature } = body;
+
+  if (!walletAddress || !signature) {
     return NextResponse.json<ApiError>(
-      { error: parsed.error.issues[0]?.message ?? "Invalid request" },
+      { error: "walletAddress and signature are required" },
       { status: 400 }
     );
   }
 
-  console.log("[POST /api/auth/connect] upserting user:", parsed.data.walletAddress);
+  // Consume the server-side nonce (one-time use)
+  const nonce = await consumeNonce();
+  if (!nonce) {
+    return NextResponse.json<ApiError>(
+      { error: "Missing or expired nonce. Please request a new one." },
+      { status: 400 }
+    );
+  }
+
+  // Build the SIWE message the frontend signed
+  const message = `AgentBank wants you to sign in with your Ethereum account:\n${walletAddress}\n\nNonce: ${nonce}`;
+
+  // Verify the signature
+  let isValid = false;
   try {
-    const user = await upsertUser(parsed.data.walletAddress);
+    isValid = await verifyMessage({
+      address: walletAddress as `0x${string}`,
+      message,
+      signature: signature as `0x${string}`,
+    });
+  } catch {
+    return NextResponse.json<ApiError>({ error: "Signature verification failed." }, { status: 401 });
+  }
+
+  if (!isValid) {
+    return NextResponse.json<ApiError>({ error: "Invalid signature." }, { status: 401 });
+  }
+
+  try {
+    const user = await upsertUser(walletAddress);
+    await setSessionCookie(user.walletAddress);
     return NextResponse.json<ApiSuccess<WalletUser>>({ data: user });
   } catch (error) {
-    console.error("[POST /api/auth/connect] upsertUser failed:", error);
     return NextResponse.json<ApiError>(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }
 }
+

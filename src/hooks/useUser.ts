@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi";
 import { useUserStore } from "@/store/userStore";
 import { useAgentStore } from "@/store/agentStore";
 import { useJobStore } from "@/store/jobStore";
@@ -7,6 +7,7 @@ import { useTransactionStore } from "@/store/transactionStore";
 
 export function useUser() {
   const { address, isConnected, status } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const { user, isLoading, hydrated, clearUser, syncUser, fetchUser, markOnboarded } = useUserStore();
   const clearAgents = useAgentStore((s) => s.clearAgents);
   const clearJobs = useJobStore((s) => s.clearJobs);
@@ -38,14 +39,19 @@ export function useUser() {
     previousAddress.current = address;
 
     if (prev && address && prev !== address) {
-      // Account switched — clear stale data and fetch new user
+      // Account switched — clear stale data and re-authenticate
       clearUser();
       clearAgents();
       clearJobs();
       clearTransactions();
-      syncUser(address);
+      syncUser(address, signMessageAsync);
     }
-  }, [address, clearUser, clearAgents, clearJobs, clearTransactions, syncUser]);
+  }, [address, clearUser, clearAgents, clearJobs, clearTransactions, syncUser, signMessageAsync]);
 
-  return { user, isLoading, hydrated, isConnected, isHydrated, address, syncUser, clearUser, markOnboarded };
+  // Call this when the user explicitly connects their wallet for the first time
+  async function signIn(walletAddress: string) {
+    return syncUser(walletAddress, signMessageAsync);
+  }
+
+  return { user, isLoading, hydrated, isConnected, isHydrated, address, signIn, clearUser, markOnboarded };
 }

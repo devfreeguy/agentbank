@@ -15,8 +15,8 @@ import type { DateFilter, TypeFilter } from "@/utils/transactionFilters";
 
 export default function TransactionsPage() {
   const { user } = useUser();
-  const { myAgents, isLoadingMyAgents, fetchMyAgents } = useAgents();
-  const { transactionsByAgent, isLoading: isLoadingTxns, fetchTransactions } = useTransactions();
+  const { myAgents, fetchMyAgents } = useAgents();
+  const { allTransactions, isLoading: isLoadingTxns, fetchAllTransactions } = useTransactions();
 
   const [agentFilter, setAgentFilter] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
@@ -31,25 +31,13 @@ export default function TransactionsPage() {
   }, [user?.id, fetchMyAgents]);
 
   useEffect(() => {
-    if (myAgents.length > 0) {
-      void Promise.all(myAgents.map((a) => fetchTransactions(a.id))).catch(() =>
-        setLoadError(true)
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myAgents.length]);
+    fetchAllTransactions().catch(() => setLoadError(true));
+  }, [fetchAllTransactions]);
 
+  // Build a name map for display purposes (agent name by ID)
   const agentMap = useMemo(
     () => Object.fromEntries(myAgents.map((a) => [a.id, a.name])),
     [myAgents]
-  );
-
-  const allTransactions = useMemo(
-    () =>
-      Object.values(transactionsByAgent)
-        .flat()
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [transactionsByAgent]
   );
 
   const filteredTransactions = useMemo(
@@ -95,10 +83,7 @@ export default function TransactionsPage() {
 
   function handleRetry() {
     setLoadError(false);
-    if (user?.id) {
-      fetchMyAgents(user.id, true);
-      myAgents.forEach((a) => fetchTransactions(a.id, true));
-    }
+    fetchAllTransactions(true).catch(() => setLoadError(true));
   }
 
   return (
@@ -107,7 +92,7 @@ export default function TransactionsPage() {
         title="Transactions"
         subtitle={
           <p className="text-[13px] text-muted-foreground">
-            Complete payment history across all your agents
+            Your complete payment history — earnings, spending, and withdrawals
           </p>
         }
         actions={
@@ -147,7 +132,7 @@ export default function TransactionsPage() {
           transactions={filteredTransactions}
           totalCount={allTransactions.length}
           agentMap={agentMap}
-          isLoading={isLoadingMyAgents || isLoadingTxns}
+          isLoading={isLoadingTxns}
           hasError={loadError}
           hasActiveFilters={hasActiveFilters}
           onRetry={handleRetry}

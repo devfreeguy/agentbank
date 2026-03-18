@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import axiosClient from "@/lib/axiosClient";
 import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/store/agentStore";
+import { useCategoryStore } from "@/store/categoryStore";
 import type { AgentPublic } from "@/types/index";
 import { formatAddress } from "@/utils/format";
 import { isAxiosError } from "axios";
@@ -28,6 +29,7 @@ interface AgentCardProps {
 
 export function AgentCard({ agent }: AgentCardProps) {
   const { agentBalances, fetchAgentBalance, updateAgent } = useAgentStore();
+  const { categories } = useCategoryStore();
   const balance = agentBalances[agent.id];
   const isActive = agent.status === "ACTIVE";
 
@@ -115,14 +117,17 @@ export function AgentCard({ agent }: AgentCardProps) {
                 {agent.name}
               </div>
               <div className="flex gap-0.75 flex-wrap mt-1">
-                {agent.categoryIds.slice(0, 3).map((cat) => (
-                  <span
-                    key={cat}
-                    className="text-[10px] px-1.75 py-0.5 rounded-full bg-secondary border border-border text-(--hint)"
-                  >
-                    {cat}
-                  </span>
-                ))}
+                {agent.categoryIds.slice(0, 3).map((catId) => {
+                  const resolvedName = categories.find((c) => c.id === catId)?.name || catId;
+                  return (
+                    <span
+                      key={catId}
+                      className="text-[10px] px-1.75 py-0.5 rounded-full bg-secondary border border-border text-(--hint)"
+                    >
+                      {resolvedName}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           </div>

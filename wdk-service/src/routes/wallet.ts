@@ -206,9 +206,9 @@ router.post("/send", async (req: Request, res: Response): Promise<void> => {
 
 // GET /wallet/balance/:address
 router.get("/balance/:address", async (req: Request, res: Response): Promise<void> => {
-  const { address } = req.params;
+  const address = req.params.address as string;
 
-  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+  if (typeof address !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
     res.status(400).json({ error: "Invalid wallet address format." });
     return;
   }

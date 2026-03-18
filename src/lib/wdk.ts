@@ -36,11 +36,13 @@ export async function createAgentWallet(): Promise<{
   address: string;
   encryptedSeed: string;
 }> {
+  console.log("[wdk] createAgentWallet called");
   try {
     return await wdkFetch<{ address: string; encryptedSeed: string }>("/wallet/create", {
       method: "POST",
     });
   } catch (error) {
+    console.error("[wdk] error:", error);
     throw new Error(
       `createAgentWallet failed: ${error instanceof Error ? error.message : String(error)}`
     );
@@ -50,6 +52,7 @@ export async function createAgentWallet(): Promise<{
 // ─── Balance ──────────────────────────────────────────────────────────────────
 
 export async function getAgentBalance(walletAddress: string): Promise<string> {
+  console.log("[wdk] getAgentBalance for:", walletAddress);
   const data = await wdkFetch<{ balance: string; address: string }>(
     `/wallet/balance/${walletAddress}`
   );
@@ -63,6 +66,7 @@ export async function sendUsdt(
   toAddress: string,
   amountUsdt: string
 ): Promise<{ txHash: string }> {
+  console.log("[wdk] sendUsdt from agent:", fromAgentId, "to:", toAddress, "amount:", amountUsdt);
   const agent = await prisma.agent.findUniqueOrThrow({
     where: { id: fromAgentId },
     select: { encryptedSeedPhrase: true },
@@ -85,12 +89,16 @@ export async function verifyPayment(
   expectedAmountUsdt: string,
   afterTimestamp: number
 ): Promise<{ confirmed: boolean; txHash?: string }> {
+  console.log("[wdk] verifyPayment for:", walletAddress);
   try {
-    return await wdkFetch<{ confirmed: boolean; txHash?: string }>("/wallet/verify-payment", {
+    const result = await wdkFetch<{ confirmed: boolean; txHash?: string }>("/wallet/verify-payment", {
       method: "POST",
       body: JSON.stringify({ walletAddress, expectedAmountUsdt, afterTimestamp }),
     });
+    console.log("[wdk] verifyPayment result:", result.confirmed);
+    return result;
   } catch (error) {
+    console.error("[wdk] error:", error);
     throw new Error(
       `verifyPayment failed: ${error instanceof Error ? error.message : String(error)}`
     );

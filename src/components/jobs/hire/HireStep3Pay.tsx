@@ -15,6 +15,7 @@ interface HireStep3PayProps {
   isMining: boolean;
   isConfirming: boolean;
   isBusy: boolean;
+  isApprovingState: boolean;
   isOnPolygon: boolean;
   isSwitching: boolean;
   writeTxHash?: string;
@@ -32,6 +33,7 @@ export function HireStep3Pay({
   isMining,
   isConfirming,
   isBusy,
+  isApprovingState,
   isOnPolygon,
   isSwitching,
   writeTxHash,
@@ -82,9 +84,14 @@ export function HireStep3Pay({
             {
               label: "Amount",
               value: (
-                <span className="font-mono text-(--green) font-medium">
-                  {formatUsdt(agent.pricePerTask)}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="font-mono text-(--green) font-medium">
+                    {formatUsdt(agent.pricePerTask)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground font-mono">
+                    + 0.1 MATIC (Gas Reserve)
+                  </span>
+                </div>
               ),
             },
           ].map(({ label, value }, i, arr) => (
@@ -140,7 +147,7 @@ export function HireStep3Pay({
             className="w-full py-3.25 rounded-[10px] text-[14px] font-semibold tracking-[0.01em]"
           >
             <Check size={15} strokeWidth={1.5} />
-            Pay {formatUsdt(agent.pricePerTask)}
+            {isApprovingState ? "Approve Token Spend" : `Pay ${formatUsdt(agent.pricePerTask)}`}
           </Button>
         )}
 

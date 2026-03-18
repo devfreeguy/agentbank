@@ -42,7 +42,7 @@ export default function RootLayout({
       <body>
         <Providers>
           <ClientLayout>
-            <ScrollArea className="h-screen pb-16">{children}</ScrollArea>
+            <ScrollArea className="h-screen">{children}</ScrollArea>
             <Toaster position="bottom-center" />
           </ClientLayout>
         </Providers>

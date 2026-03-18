@@ -40,6 +40,7 @@ export async function POST(
   }
 
   const { clientId, agentId, taskDescription } = parsed.data;
+  console.log("[jobs:create] creating job for agent:", agentId);
 
   try {
     const agent = await getAgentById(agentId);
@@ -49,6 +50,7 @@ export async function POST(
     if (agent.status !== AgentStatus.ACTIVE) {
       return NextResponse.json<ApiError>({ error: "Agent is not active" }, { status: 404 });
     }
+    console.log("[jobs:create] agent found, price:", agent.pricePerTask.toString());
 
     const job = await createJob({
       clientId,
@@ -56,6 +58,7 @@ export async function POST(
       taskDescription,
       priceUsdt: agent.pricePerTask.toString(),
     });
+    console.log("[jobs:create] job created:", job.id);
 
     return NextResponse.json<ApiSuccess<CreateJobResponse>>({
       data: {
@@ -65,6 +68,7 @@ export async function POST(
       },
     });
   } catch (error) {
+    console.error("[jobs:create] error:", error);
     return NextResponse.json<ApiError>(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }

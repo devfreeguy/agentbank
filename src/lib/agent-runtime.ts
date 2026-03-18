@@ -1,10 +1,22 @@
 import { getJobById, updateJobStatus } from "@/lib/db/jobs";
-import { getAgentWithSeed, getActiveAgents, incrementJobsCompleted } from "@/lib/db/agents";
-import { createSubJob, updateSubJobStatus, updateSubJobOutput } from "@/lib/db/subJobs";
+import {
+  getAgentWithSeed,
+  getActiveAgents,
+  incrementJobsCompleted,
+} from "@/lib/db/agents";
+import {
+  createSubJob,
+  updateSubJobStatus,
+  updateSubJobOutput,
+} from "@/lib/db/subJobs";
 import { runAgentTask } from "@/lib/groq";
 import { sendUsdt, getAgentBalance } from "@/lib/wdk";
 import { prisma } from "@/lib/prisma";
-import { JobStatus, SubJobStatus, TransactionType } from "@/generated/prisma/enums";
+import {
+  JobStatus,
+  SubJobStatus,
+  TransactionType,
+} from "@/generated/prisma/enums";
 
 const USDT_PER_TOKEN = 0.00001;
 
@@ -15,11 +27,16 @@ function calcCost(totalTokens: number): string {
 async function recordSpent(
   agentId: string,
   costUsdt: string,
-  description: string
+  description: string,
 ): Promise<void> {
   await prisma.$transaction([
     prisma.agentTransaction.create({
-      data: { agentId, type: TransactionType.SPENT, amountUsdt: costUsdt, description },
+      data: {
+        agentId,
+        type: TransactionType.SPENT,
+        amountUsdt: costUsdt,
+        description,
+      },
     }),
     prisma.agent.update({
       where: { id: agentId },
@@ -32,11 +49,15 @@ function cleanOutput(raw: string): string {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const text =
-      typeof parsed.response === "string" ? parsed.response :
-      typeof parsed.content === "string" ? parsed.content :
-      typeof parsed.text === "string" ? parsed.text :
-      typeof parsed.result === "string" ? parsed.result :
-      null;
+      typeof parsed.response === "string"
+        ? parsed.response
+        : typeof parsed.content === "string"
+          ? parsed.content
+          : typeof parsed.text === "string"
+            ? parsed.text
+            : typeof parsed.result === "string"
+              ? parsed.result
+              : null;
     if (text !== null) return text;
     return JSON.stringify(parsed, null, 2);
   } catch {
@@ -74,34 +95,44 @@ function parseDecision(raw: string): DelegateDecision {
 }
 
 export async function executeJob(
-  jobId: string
+  jobId: string,
 ): Promise<{ output: string; status: "DELIVERED" | "FAILED" }> {
+  console.log("[runtime] starting executeJob:", jobId);
+
   // Pre-condition checks — throws propagate to the caller (route handles 404/400)
   const job = await getJobById(jobId);
   if (!job) throw new Error("Job not found");
-  console.log("[runtime] job fetched:", job.id, job.status);
-  if (job.status !== JobStatus.PAID && job.status !== JobStatus.IN_PROGRESS) {
-    throw new Error(`Expected PAID or IN_PROGRESS status, got ${job.status}`);
+  console.log("[runtime] job fetched, status:", job.status);
+  if (
+    !(
+      [JobStatus.PAID, JobStatus.IN_PROGRESS, JobStatus.FAILED] as string[]
+    ).includes(job.status)
+  ) {
+    throw new Error(
+      `Expected PAID, IN_PROGRESS, or FAILED status, got ${job.status}`,
+    );
   }
 
   // Execution phase — any throw here → FAILED
   try {
     const agentSeed = await getAgentWithSeed(job.agentId);
     if (!agentSeed) throw new Error("Agent seed not found");
+    console.log("[runtime] agent fetched successfully.");
 
     await updateJobStatus(jobId, JobStatus.IN_PROGRESS);
-    console.log("[runtime] status set to IN_PROGRESS");
 
     // Available sub-agents (excluding self)
+    console.log("[runtime] fetching active agents for context...");
     const allActive = await getActiveAgents();
     const subAgents = allActive.filter((a) => a.id !== job.agentId);
+    console.log("[runtime] available sub-agents:", subAgents.length);
 
     const subAgentContext =
       subAgents.length > 0
         ? `\n\nAvailable sub-agents you may delegate to:\n${subAgents
             .map(
               (a) =>
-                `- ID: ${a.id} | Name: ${a.name} | Categories: ${a.categoryIds.join(", ")} | Price: ${a.pricePerTask.toString()} USDT`
+                `- ID: ${a.id} | Name: ${a.name} | Categories: ${a.categoryIds.join(", ")} | Price: ${a.pricePerTask.toString()} USDT`,
             )
             .join("\n")}`
         : "\n\nNo sub-agents are currently available.";
@@ -117,7 +148,7 @@ To delegate part of the task to a sub-agent from the list below:
 {"delegate":true,"subAgentId":"<id>","subTask":"<specific task for sub-agent>","mainTask":"<what you will synthesize using the sub-agent output>"}`;
 
     // ── First Groq call: decision ──────────────────────────────────────────────
-    console.log("[runtime] calling Groq (decision)...");
+    console.log("[runtime] making decision call to Groq...");
     const {
       output: decisionRaw,
       promptTokens: dPrompt,
@@ -125,32 +156,43 @@ To delegate part of the task to a sub-agent from the list below:
     } = await runAgentTask(
       decisionSystemPrompt,
       `Task: ${job.taskDescription}${subAgentContext}`,
-      "json"
+      "json",
     );
-    console.log("[runtime] Groq response received, tokens:", dPrompt + dCompletion);
 
     const decision = parseDecision(decisionRaw);
+    console.log(
+      "[runtime] Groq decision received, delegate:",
+      decision.delegate,
+    );
 
     // ── Scenario A: handle alone ───────────────────────────────────────────────
     if (!decision.delegate) {
+      console.log("[runtime] handling alone — generating response...");
       const cleanedResponse = cleanOutput(decision.response);
+      const tokens = dPrompt + dCompletion;
+      console.log("[runtime] response generated, tokens:", tokens);
+      console.log("[runtime] recording cost transaction...");
       await recordSpent(
         job.agentId,
-        calcCost(dPrompt + dCompletion),
-        `API usage — ${dPrompt + dCompletion} tokens`
+        calcCost(tokens),
+        `API usage — ${tokens} tokens`,
       );
-      console.log("[runtime] setting DELIVERED");
+      console.log("[runtime] updating job to DELIVERED");
       await prisma.job.update({
         where: { id: jobId },
         data: { status: JobStatus.DELIVERED, output: cleanedResponse },
       });
       await incrementJobsCompleted(job.agentId);
+      console.log("[runtime] done ✓");
       return { output: cleanedResponse, status: "DELIVERED" };
     }
 
     // ── Scenario B: delegate ───────────────────────────────────────────────────
+    console.log("[runtime] delegating to sub-agent:", decision.subAgentId);
     const subAgent = subAgents.find((a) => a.id === decision.subAgentId);
+    console.log("[runtime] verifying sub-agent exists...");
     const subAgentPrice = subAgent?.pricePerTask.toString() ?? "0";
+    console.log("[runtime] checking parent balance...");
     const parentBalance = subAgent
       ? await getAgentBalance(agentSeed.walletAddress)
       : "0";
@@ -159,36 +201,44 @@ To delegate part of the task to a sub-agent from the list below:
 
     if (!canDelegate) {
       // Fallback: run the task directly
-      console.log("[runtime] calling Groq (fallback — no delegate)...");
+      console.log(
+        "[runtime] cannot delegate (no balance or agent not found) — falling back to direct execution...",
+      );
       const {
         output: fallbackOutput,
         promptTokens: fbPrompt,
         completionTokens: fbCompletion,
       } = await runAgentTask(agentSeed.systemPrompt, job.taskDescription);
-      console.log("[runtime] Groq response received, tokens:", dPrompt + dCompletion + fbPrompt + fbCompletion);
+      const fallbackTokens = dPrompt + dCompletion + fbPrompt + fbCompletion;
+      console.log("[runtime] response generated, tokens:", fallbackTokens);
       const cleanedFallback = cleanOutput(fallbackOutput);
+      console.log("[runtime] recording cost transaction...");
       await recordSpent(
         job.agentId,
-        calcCost(dPrompt + dCompletion + fbPrompt + fbCompletion),
-        `API usage — ${dPrompt + dCompletion + fbPrompt + fbCompletion} tokens`
+        calcCost(fallbackTokens),
+        `API usage — ${fallbackTokens} tokens`,
       );
-      console.log("[runtime] setting DELIVERED");
+      console.log("[runtime] updating job to DELIVERED");
       await prisma.job.update({
         where: { id: jobId },
         data: { status: JobStatus.DELIVERED, output: cleanedFallback },
       });
       await incrementJobsCompleted(job.agentId);
+      console.log("[runtime] done ✓");
       return { output: cleanedFallback, status: "DELIVERED" };
     }
 
     // Send USDT from parent agent to sub-agent
+    console.log("[runtime] sending USDT to sub-agent...");
     const { txHash: subPaymentTxHash } = await sendUsdt(
       job.agentId,
       subAgent.walletAddress,
-      subAgentPrice
+      subAgentPrice,
     );
+    console.log("[runtime] sub-agent payment sent, txHash:", subPaymentTxHash);
 
     // Create sub-job record
+    console.log("[runtime] creating sub-job record...");
     const subJob = await createSubJob({
       parentJobId: jobId,
       parentAgentId: job.agentId,
@@ -200,18 +250,18 @@ To delegate part of the task to a sub-agent from the list below:
     await updateSubJobStatus(subJob.id, SubJobStatus.IN_PROGRESS);
 
     // ── Second Groq call: sub-agent executes its task ──────────────────────────
-    console.log("[runtime] calling Groq (sub-agent)...");
+    console.log("[runtime] executing sub-agent task...");
     const {
       output: subOutput,
       promptTokens: sPrompt,
       completionTokens: sCompletion,
     } = await runAgentTask(subAgent.systemPrompt, decision.subTask);
-    console.log("[runtime] Groq response received, tokens:", sPrompt + sCompletion);
+    console.log("[runtime] sub-agent output received");
 
     await recordSpent(
       subAgent.id,
       calcCost(sPrompt + sCompletion),
-      `API usage — ${sPrompt + sCompletion} tokens`
+      `API usage — ${sPrompt + sCompletion} tokens`,
     );
 
     await updateSubJobOutput(subJob.id, subOutput, subPaymentTxHash);
@@ -234,16 +284,15 @@ To delegate part of the task to a sub-agent from the list below:
     });
 
     // ── Third Groq call: parent synthesizes final answer ───────────────────────
-    console.log("[runtime] calling Groq (synthesis)...");
+    console.log("[runtime] making final synthesis call...");
     const {
       output: finalOutput,
       promptTokens: fPrompt,
       completionTokens: fCompletion,
     } = await runAgentTask(
       agentSeed.systemPrompt,
-      `Original task: ${decision.mainTask}\n\nSub-agent output:\n${subOutput}\n\nUsing the sub-agent output above, complete the original task.`
+      `Original task: ${decision.mainTask}\n\nSub-agent output:\n${subOutput}\n\nUsing the sub-agent output above, complete the original task.`,
     );
-    console.log("[runtime] Groq response received, tokens:", fPrompt + fCompletion);
 
     const cleanedFinal = cleanOutput(finalOutput);
 
@@ -251,10 +300,10 @@ To delegate part of the task to a sub-agent from the list below:
     await recordSpent(
       job.agentId,
       calcCost(dPrompt + dCompletion + fPrompt + fCompletion),
-      `API usage — ${dPrompt + dCompletion + fPrompt + fCompletion} tokens`
+      `API usage — ${dPrompt + dCompletion + fPrompt + fCompletion} tokens`,
     );
 
-    console.log("[runtime] setting DELIVERED");
+    console.log("[runtime] final output ready, setting DELIVERED");
     await prisma.job.update({
       where: { id: jobId },
       data: { status: JobStatus.DELIVERED, output: cleanedFinal },
@@ -263,6 +312,7 @@ To delegate part of the task to a sub-agent from the list below:
     await incrementJobsCompleted(job.agentId);
     await incrementJobsCompleted(subAgent.id);
 
+    console.log("[runtime] done ✓");
     return { output: cleanedFinal, status: "DELIVERED" };
   } catch (error) {
     console.error("[runtime] FAILED:", error);

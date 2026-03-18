@@ -1,7 +1,7 @@
 import { useTransactionStore } from "@/store/transactionStore";
 
 export function useTransactions() {
-  const { transactionsByAgent, isLoading, fetchTransactions, clearTransactions } = useTransactionStore();
+  const { allTransactions, isLoading, fetchAllTransactions, clearTransactions } = useTransactionStore();
 
-  return { transactionsByAgent, isLoading, fetchTransactions, clearTransactions };
+  return { allTransactions, isLoading, fetchAllTransactions, clearTransactions };
 }

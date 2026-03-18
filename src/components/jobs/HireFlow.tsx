@@ -2,13 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useWriteContract, useWaitForTransactionReceipt, useChainId, useSwitchChain } from "wagmi";
+import {
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useChainId,
+  useSwitchChain,
+  useReadContract,
+} from "wagmi";
 import { polygon } from "wagmi/chains";
 import { isAxiosError } from "axios";
 import axiosClient from "@/lib/axiosClient";
 import { getAvatarColor } from "@/utils/avatarColor";
 import { AgentStatus } from "@/generated/prisma/enums";
-import { USDT_CONTRACT_ADDRESS, USDT_DECIMALS } from "@/constants/contracts";
+import { USDT_CONTRACT_ADDRESS, USDT_DECIMALS, AGENT_GAS_ROUTER_ADDRESS, AGENT_GAS_ROUTER_ABI } from "@/constants/contracts";
 import { USDT_ABI } from "@/constants/usdtAbi";
 import { useJobStore } from "@/store/jobStore";
 import {
@@ -61,12 +67,34 @@ export function HireFlow({
   const [activeJob, setActiveJob] = useState<JobWithRelations | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
-  const { addJob, setActiveJobId: setGlobalActiveJobId } = useJobStore.getState();
+  const { addJob, setActiveJobId: setGlobalActiveJobId } =
+    useJobStore.getState();
 
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const isOnPolygon = chainId === polygon.id;
+
+  const amountInWei = BigInt(
+    Math.round(parseFloat(agent.pricePerTask) * 10 ** USDT_DECIMALS),
+  );
+
+  const { data: allowanceData, refetch: refetchAllowance } = useReadContract({
+    address: USDT_CONTRACT_ADDRESS as `0x${string}`,
+    abi: USDT_ABI,
+    functionName: "allowance",
+    args: [
+      user?.walletAddress as `0x${string}` || "0x0000000000000000000000000000000000000000",
+      AGENT_GAS_ROUTER_ADDRESS as `0x${string}`,
+    ],
+    chainId: polygon.id,
+    query: {
+      enabled: !!user?.walletAddress,
+    },
+  });
+
+  const hasAllowance = allowanceData ? (allowanceData as bigint) >= amountInWei : false;
 
   const {
     writeContract,
@@ -103,26 +131,49 @@ export function HireFlow({
     }
   }, [step]);
 
-  // Create job after on-chain receipt confirmed
+  // Handle successful transaction receipts (Approve or Payment)
   useEffect(() => {
-    if (!isReceiptSuccess || !writeTxHash || !user || activeJobId || isSubmitting) return;
+    if (
+      !isReceiptSuccess ||
+      !writeTxHash ||
+      !user ||
+      activeJobId ||
+      isSubmitting
+    )
+      return;
 
+    if (isApproving) {
+      // Finished approving, now trigger the actual payment
+      setIsApproving(false);
+      refetchAllowance().then(() => {
+        resetWrite();
+        handleExecutePayment();
+      });
+      return;
+    }
+
+    // Otherwise, this is the actual payment receipt. Create the job.
     async function createAndConfirm() {
       setIsSubmitting(true);
       setError(null);
       try {
-        const res = await axiosClient.post<{ data: { id: string } }>("/api/jobs", {
-          clientId: user!.id,
-          agentId: agent.id,
-          taskDescription,
-        });
+        const res = await axiosClient.post<{ data: { id: string } }>(
+          "/api/jobs",
+          {
+            clientId: user!.id,
+            agentId: agent.id,
+            taskDescription,
+          },
+        );
         const jobId = res.data.data.id;
         setActiveJobId(jobId);
         prevJobIdRef.current = jobId;
         setGlobalActiveJobId(jobId);
 
         // Confirm payment
-        await axiosClient.post(`/api/jobs/${jobId}/check-payment`, { txHash: writeTxHash });
+        await axiosClient.post(`/api/jobs/${jobId}/check-payment`, {
+          txHash: writeTxHash,
+        });
 
         // Immediately add a partial job to the store so it appears in the dashboard
         const partialJob: JobWithRelations = {
@@ -164,9 +215,9 @@ export function HireFlow({
     // Trigger agent execution exactly once per job
     if (!hasRunRef.current) {
       hasRunRef.current = true;
-      axiosClient.post(`/api/jobs/${activeJobId}/run`).catch((err) =>
-        console.error("[HireFlow] /run failed:", err)
-      );
+      axiosClient
+        .post(`/api/jobs/${activeJobId}/run`)
+        .catch((err) => console.error("[HireFlow] /run failed:", err));
     }
 
     startJobPoll(activeJobId);
@@ -187,6 +238,21 @@ export function HireFlow({
     };
   }, [step, activeJobId]);
 
+  function handleExecutePayment() {
+    writeContract({
+      address: AGENT_GAS_ROUTER_ADDRESS as `0x${string}`,
+      abi: AGENT_GAS_ROUTER_ABI,
+      functionName: "payAgent",
+      args: [
+        agent.walletAddress as `0x${string}`,
+        USDT_CONTRACT_ADDRESS as `0x${string}`,
+        amountInWei,
+      ],
+      value: BigInt(0.1 * 10 ** 18), // 0.1 MATIC flat fee
+      chainId: polygon.id,
+    });
+  }
+
   function handlePayWithWallet() {
     if (!user) {
       router.push("/connect");
@@ -194,32 +260,39 @@ export function HireFlow({
     }
     resetWrite();
     setError(null);
-    const amountInWei = BigInt(
-      Math.round(parseFloat(agent.pricePerTask) * 10 ** USDT_DECIMALS)
-    );
-    writeContract({
-      address: USDT_CONTRACT_ADDRESS as `0x${string}`,
-      abi: USDT_ABI,
-      functionName: "transfer",
-      args: [agent.walletAddress as `0x${string}`, amountInWei],
-      chainId: polygon.id,
-    });
+    
+    if (!hasAllowance) {
+      setIsApproving(true);
+      writeContract({
+        address: USDT_CONTRACT_ADDRESS as `0x${string}`,
+        abi: USDT_ABI,
+        functionName: "approve",
+        args: [AGENT_GAS_ROUTER_ADDRESS as `0x${string}`, amountInWei],
+        chainId: polygon.id,
+      });
+    } else {
+      setIsApproving(false);
+      handleExecutePayment();
+    }
   }
 
   function copyText(text: string) {
-    navigator.clipboard.writeText(text).then(() => showToast("Copied to clipboard"));
+    navigator.clipboard
+      .writeText(text)
+      .then(() => showToast("Copied to clipboard"));
   }
 
   const isMining = !!writeTxHash && isReceiptLoading;
-  const isConfirming = isReceiptSuccess && isSubmitting;
+  const isConfirming = isReceiptSuccess && (isSubmitting || isApproving);
   const isBusy = isWalletPending || isMining || isConfirming;
+  const isApprovingState = isApproving || (!hasAllowance && isBusy);
 
-  const payError =
-    writeError
-      ? writeError.message.includes("User rejected") || writeError.message.includes("user rejected")
-        ? "Transaction rejected. Please try again."
-        : writeError.message
-      : isReceiptError
+  const payError = writeError
+    ? writeError.message.includes("User rejected") ||
+      writeError.message.includes("user rejected")
+      ? "Transaction rejected. Please try again."
+      : writeError.message
+    : isReceiptError
       ? "Transaction failed on-chain. Please try again."
       : error;
 
@@ -261,6 +334,7 @@ export function HireFlow({
         isMining={isMining}
         isConfirming={isConfirming}
         isBusy={isBusy}
+        isApprovingState={isApprovingState}
         isOnPolygon={isOnPolygon}
         isSwitching={isSwitching}
         writeTxHash={writeTxHash}
@@ -269,6 +343,7 @@ export function HireFlow({
         onBack={() => {
           resetWrite();
           setError(null);
+          setIsApproving(false);
           onStepChange("describe");
         }}
         onPay={handlePayWithWallet}

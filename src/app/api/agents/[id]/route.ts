@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAgentById, updateAgentSettings } from "@/lib/db/agents";
+import { getUserByWallet } from "@/lib/db/users";
 import { updateAgentSettingsSchema } from "@/lib/validations/agentSchema";
 import { AgentStatus } from "@/generated/prisma/enums";
 import { serializeAgent } from "@/utils/serialize";
+import { getCurrentSession } from "@/lib/session";
 import type { AgentPublic, ApiError, ApiSuccess } from "@/types/index";
 
 export async function GET(
@@ -46,7 +48,26 @@ export async function PATCH(
     );
   }
 
+  const sessionWallet = await getCurrentSession();
+  if (!sessionWallet) {
+    return NextResponse.json<ApiError>({ error: "Unauthorized. Please connect your wallet." }, { status: 401 });
+  }
+
   try {
+    const sessionUser = await getUserByWallet(sessionWallet);
+    if (!sessionUser) {
+      return NextResponse.json<ApiError>({ error: "Session user not found" }, { status: 401 });
+    }
+
+    const existingAgent = await getAgentById(id);
+    if (!existingAgent) {
+      return NextResponse.json<ApiError>({ error: "Agent not found" }, { status: 404 });
+    }
+    
+    if (existingAgent.ownerId !== sessionUser.id) {
+      return NextResponse.json<ApiError>({ error: "Forbidden. You do not own this agent." }, { status: 403 });
+    }
+
     const updates: { status?: AgentStatus; systemPrompt?: string; pricePerTask?: string } = {};
     if (parsed.data.status) updates.status = parsed.data.status as AgentStatus;
     if (parsed.data.systemPrompt) updates.systemPrompt = parsed.data.systemPrompt;

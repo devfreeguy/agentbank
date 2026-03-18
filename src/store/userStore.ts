@@ -9,10 +9,12 @@ interface UserState {
   hydrated: boolean;
 }
 
+type SignMessageAsync = (args: { message: string }) => Promise<`0x${string}`>;
+
 interface UserActions {
   setUser: (user: WalletUser) => void;
   clearUser: () => void;
-  syncUser: (walletAddress: string) => Promise<void>;
+  syncUser: (walletAddress: string, signMessageAsync: SignMessageAsync) => Promise<void>;
   fetchUser: (walletAddress: string) => Promise<void>;
   markOnboarded: (walletAddress: string) => Promise<void>;
   updateRole: (walletAddress: string, role: string) => Promise<void>;
@@ -35,13 +37,24 @@ export const useUserStore = create<UserState & UserActions>()(
         state.hydrated = false;
       }),
 
-    syncUser: async (walletAddress) => {
+    syncUser: async (walletAddress: string, signMessageAsync: SignMessageAsync) => {
       set((state) => {
         state.isLoading = true;
       });
       try {
+        // Step 1: Get a fresh nonce from the server
+        const nonceRes = await axiosClient.get<{ nonce: string }>("/api/auth/nonce");
+        const nonce = nonceRes.data?.nonce;
+        if (!nonce) throw new Error("Failed to get auth nonce");
+
+        // Step 2: Build the SIWE message and sign it with the user's wallet
+        const message = `AgentBank wants you to sign in with your Ethereum account:\n${walletAddress}\n\nNonce: ${nonce}`;
+        const signature = await signMessageAsync({ message });
+
+        // Step 3: POST the signature to the server for verification
         const res = await axiosClient.post<{ data: WalletUser }>("/api/auth/connect", {
           walletAddress,
+          signature,
         });
         if (res.data?.data) {
           set((state) => {
@@ -50,6 +63,7 @@ export const useUserStore = create<UserState & UserActions>()(
         }
       } catch (err) {
         console.error("[userStore] syncUser failed:", err);
+        throw err; // re-throw so the UI can show an error
       } finally {
         set((state) => {
           state.isLoading = false;

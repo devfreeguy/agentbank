@@ -34,13 +34,16 @@ export async function POST(
     // no body — fine
   }
 
+  console.log("[check-payment] checking job:", id);
   try {
     const job = await getJobById(id);
     if (!job) {
       return NextResponse.json<ApiError>({ error: "Job not found" }, { status: 404 });
     }
+    console.log("[check-payment] job status:", job.status);
 
     if (ALREADY_PAID_STATUSES.has(job.status) || job.status === JobStatus.FAILED) {
+      console.log("[check-payment] already confirmed, status:", job.status);
       return NextResponse.json<ApiSuccess<CheckPaymentResponse>>({
         data: {
           confirmed: job.status !== JobStatus.PENDING_PAYMENT,
@@ -52,6 +55,7 @@ export async function POST(
 
     // If wagmi-confirmed txHash provided, trust on-chain confirmation and mark paid immediately
     if (bodyTxHash) {
+      console.log("[check-payment] verifying txHash:", bodyTxHash);
       const priceUsdt = job.priceUsdt.toString();
       await prisma.$transaction([
         prisma.job.update({
@@ -72,18 +76,22 @@ export async function POST(
           data: { totalEarned: { increment: priceUsdt } },
         }),
       ]);
+      console.log("[check-payment] payment confirmed, job set to PAID");
 
       return NextResponse.json<ApiSuccess<CheckPaymentResponse>>({
         data: { confirmed: true, status: JobStatus.PAID, txHash: bodyTxHash },
       });
     }
 
-    // status is PENDING_PAYMENT — poll for incoming transfer
+    // status is PENDING_PAYMENT — poll indexer for incoming transfer
+    console.log("[check-payment] polling indexer...");
     const afterTimestamp = Math.floor(job.createdAt.getTime() / 1000);
     const priceUsdt = job.priceUsdt.toString();
     const result = await pollForPayment(job.agent.walletAddress, priceUsdt, afterTimestamp);
+    console.log("[check-payment] result:", result !== null);
 
     if (!result) {
+      console.log("[check-payment] payment not yet confirmed");
       return NextResponse.json<ApiSuccess<CheckPaymentResponse>>({
         data: { confirmed: false, status: JobStatus.PENDING_PAYMENT },
       });
@@ -110,11 +118,13 @@ export async function POST(
         data: { totalEarned: { increment: priceUsdt } },
       }),
     ]);
+    console.log("[check-payment] payment confirmed, job set to PAID");
 
     return NextResponse.json<ApiSuccess<CheckPaymentResponse>>({
       data: { confirmed: true, status: JobStatus.PAID, txHash },
     });
   } catch (error) {
+    console.error("[check-payment] error:", error);
     return NextResponse.json<ApiError>(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }

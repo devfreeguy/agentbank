@@ -23,7 +23,7 @@ AgentBank is a marketplace where AI agents operate as autonomous economic actors
 - **Database** — NeonDB (PostgreSQL) + Prisma 7
 - **Wallet SDK** — Tether WDK (`@tetherto/wdk`, `@tetherto/wdk-wallet-evm`) via standalone microservice
 - **AI** — Groq (`llama-3.3-70b-versatile`)
-- **Auth** — wagmi + viem + RainbowKit (MetaMask / WalletConnect)
+- **Auth** — SIWE (Sign-In-With-Ethereum) + wagmi + viem + RainbowKit — signed JWT sessions via `jose`
 - **State** — Zustand with smart cache-first fetching
 - **Chain** — Polygon mainnet
 - **Token** — USDT ERC-20 on Polygon
@@ -68,6 +68,7 @@ Create `.env.local` in the project root and fill in your values:
 |---|---|
 | `DATABASE_URL` | NeonDB pooled connection string |
 | `DIRECT_DATABASE_URL` | NeonDB direct connection string (for migrations) |
+| `SESSION_SECRET` | 64-char hex secret used to sign JWT session cookies |
 | `WDK_INDEXER_API_KEY` | Tether WDK Indexer API key |
 | `GROQ_API_KEY` | Groq API key |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | WalletConnect project ID |
@@ -75,6 +76,12 @@ Create `.env.local` in the project root and fill in your values:
 | `PLATFORM_BILLING_ADDRESS` | Platform wallet address for fee collection |
 | `AGENT_ENCRYPTION_KEY` | Secret key for encrypting agent seed phrases (min 32 chars) |
 | `WDK_SERVICE_SECRET` | Shared secret between Next.js and the WDK microservice |
+
+To generate a `SESSION_SECRET`:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
 ### Database
 
@@ -98,7 +105,7 @@ npm run dev
 
 ## How it works
 
-1. **Connect wallet** — User connects via MetaMask or WalletConnect. Their wallet address becomes their identity.
+1. **Connect wallet** — User connects via MetaMask or WalletConnect. A SIWE (Sign-In-With-Ethereum) challenge is issued — the user signs a one-time message with their wallet to prove ownership. A signed JWT session cookie is minted server-side.
 
 2. **Choose role** — Agent Owner, Client, or both. Roles can be changed anytime.
 
@@ -114,6 +121,16 @@ npm run dev
 
 ---
 
+## Security
+
+- **SIWE Authentication** — Wallet sign-in requires cryptographic signature verification. No one can impersonate a wallet address.
+- **Signed JWT Sessions** — `HttpOnly` session cookies are signed with `HS256` (via `jose`). Tampering invalidates the session.
+- **Backend Authorization** — All sensitive mutations (agent price/settings edits) verify ownership server-side. Role-based UI is backed by real API-level enforcement.
+- **Encrypted Agent Wallets** — Agent seed phrases are AES-encrypted at rest and never exposed to the client.
+- **Profile Protection** — `GET /api/users/me` validates the session cookie; cross-user probing is blocked.
+
+---
+
 ## Project structure
 
 ```
@@ -123,7 +140,7 @@ src/
   constants/      # Chain config, contract addresses
   generated/      # Prisma client (auto-generated, do not edit)
   hooks/          # Custom React hooks
-  lib/            # Core logic: prisma, wdk, groq, indexer, agent runtime, db queries
+  lib/            # Core logic: prisma, wdk, groq, indexer, agent runtime, db queries, session
   store/          # Zustand stores: user, agents, jobs, categories, transactions
   types/          # Shared TypeScript types
   utils/          # Pure formatting utilities
@@ -131,12 +148,10 @@ wdk-service/      # Standalone WDK microservice (Express + Node.js)
 prisma/
   schema.prisma
   migrations/
-skills/           # AI coding guidelines for this codebase
-ui-templates/     # Approved HTML design templates
 ```
 
 ---
 
 ## License
 
-Apache 2.0
+Apache 2.0

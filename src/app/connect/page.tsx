@@ -18,15 +18,20 @@ import { useUser } from "@/hooks/useUser";
 import { PublicFooter } from "@/components/landing/PublicFooter";
 
 export default function AuthPage() {
-  const { isConnected, user, hydrated, syncUser, address } = useUser();
+  const { isConnected, user, hydrated, signIn, address } = useUser();
   const router = useRouter();
   const [faqOpen, setFaqOpen] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
 
   // Sync user on connect, then redirect based on onboarded flag
   useEffect(() => {
     if (!isConnected || !address) return;
     if (!user) {
-      syncUser(address);
+      setSignInError(null);
+      signIn(address).catch((err: Error) => {
+        // User rejected the signature prompt
+        setSignInError(err?.message?.includes("User rejected") ? "Signature cancelled. Please try again." : "Authentication failed. Please reconnect.");
+      });
       return;
     }
     if (hydrated || user) {
@@ -36,7 +41,7 @@ export default function AuthPage() {
         router.replace("/onboarding");
       }
     }
-  }, [isConnected, address, user, hydrated, syncUser, router]);
+  }, [isConnected, address, user, hydrated, signIn, router]);
 
   // Render nothing while redirect is in progress
   if (isConnected) return null;

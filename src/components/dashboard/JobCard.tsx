@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/utils/format";
 import {
@@ -12,6 +13,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import axiosClient from "@/lib/axiosClient";
+import { startJobPoll, stopJobPoll, setJobCallbacks } from "@/lib/backgroundPolls";
+import { useJobStore } from "@/store/jobStore";
 import type { JobWithRelations } from "@/types/index";
 import type { JobStatus } from "@/generated/prisma/enums";
 
@@ -42,11 +46,41 @@ const STATUS_LABEL: Record<JobStatus, string> = {
 };
 
 export function JobCard({ job, isNew, onViewed }: JobCardProps) {
-  const router = useRouter();
   const [outputOpen, setOutputOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [pollingForRetry, setPollingForRetry] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
+  const updateJob = useJobStore((s) => s.updateJob);
   const status = job.status as JobStatus;
+
+  async function handleRetry() {
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      await axiosClient.patch(`/api/jobs/${job.id}`, { status: "PAID" });
+      await axiosClient.post(`/api/jobs/${job.id}/run`);
+      // Immediately reflect IN_PROGRESS in the store so the card updates now
+      updateJob(job.id, { status: "IN_PROGRESS" as JobStatus });
+      // Stop any stale poll before starting fresh
+      stopJobPoll(job.id);
+
+      setJobCallbacks(job.id, {
+        onDelivered: () => setPollingForRetry(false),
+        onFailed: () => {
+          setPollingForRetry(false);
+          setRetryError("Task failed again. Please try again later.");
+        },
+      });
+      startJobPoll(job.id);
+      setPollingForRetry(true);
+    } catch {
+      toast.error("Could not reach server. Check your connection.");
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   function handleViewOutput() {
     onViewed?.();
@@ -58,7 +92,7 @@ export function JobCard({ job, isNew, onViewed }: JobCardProps) {
       <div
         className={cn(
           "bg-sidebar border border-(--border-med) rounded-[12px] px-4 py-3.5 flex items-center gap-3 transition-colors hover:border-[rgba(255,255,255,0.17)]",
-          status === "FAILED" && "opacity-70",
+          status === "FAILED" && !retrying && !pollingForRetry && "opacity-70",
         )}
       >
         {/* Avatar */}
@@ -97,6 +131,11 @@ export function JobCard({ job, isNew, onViewed }: JobCardProps) {
               {formatRelativeTime(job.createdAt)}
             </span>
           </div>
+          {status === "FAILED" && (
+            <div className="mt-1 text-[11px] text-muted-foreground font-light leading-[1.5]">
+              {retryError ?? "This job failed due to a network error. Your agent will retry automatically, or you can retry manually."}
+            </div>
+          )}
         </div>
 
         {/* Right */}
@@ -127,12 +166,30 @@ export function JobCard({ job, isNew, onViewed }: JobCardProps) {
             </button>
           )}
           {status === "FAILED" && (
-            <button
-              onClick={() => router.push("/jobs")}
-              className="px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground hover:text-foreground hover:border-[rgba(255,255,255,0.17)] transition-colors cursor-pointer"
-            >
-              Retry
-            </button>
+            retrying ? (
+              <button
+                disabled
+                className="flex items-center gap-1.5 px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground opacity-60 cursor-not-allowed"
+              >
+                <Loader2 size={11} className="animate-spin" />
+                Retrying…
+              </button>
+            ) : pollingForRetry ? (
+              <button
+                disabled
+                className="flex items-center gap-1.5 px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground cursor-not-allowed"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-(--orange) animate-pulse shrink-0" />
+                Running…
+              </button>
+            ) : (
+              <button
+                onClick={handleRetry}
+                className="px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground hover:text-foreground hover:border-[rgba(255,255,255,0.17)] transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
+            )
           )}
           {(status === "IN_PROGRESS" || status === "PAID") && (
             <button className="px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
