@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import { useUserStore } from "@/store/userStore";
 import { useAgentStore } from "@/store/agentStore";
@@ -18,15 +18,36 @@ export function useUser() {
 
   const previousAddress = useRef<string | undefined>(undefined);
 
+  // Keep signMessageAsync in a ref so effects don't need it as a dependency
+  const signMessageRef = useRef(signMessageAsync);
+  useEffect(() => {
+    signMessageRef.current = signMessageAsync;
+  }, [signMessageAsync]);
+
+  // Guard against concurrent sign-in calls (prevents the 200+ popup storm)
+  const isSigningRef = useRef(false);
+
+  // Stable signIn function that won't cause useEffect re-fires
+  const signIn = useCallback(async (walletAddress: string) => {
+    if (isSigningRef.current) return; // already signing — bail
+    isSigningRef.current = true;
+    try {
+      await syncUser(walletAddress, signMessageRef.current);
+    } finally {
+      isSigningRef.current = false;
+    }
+  }, [syncUser]);
+
+  // Re-fetch existing user on page refresh (no sign required — session cookie handles auth)
   useEffect(() => {
     if (isConnected && address && !user) {
       fetchUser(address);
     }
   }, [isConnected, address, user, fetchUser]);
 
+  // Wallet disconnected — wipe all state
   useEffect(() => {
     if (!address) {
-      // Wallet disconnected — clear all user-specific store data
       clearUser();
       clearAgents();
       clearJobs();
@@ -34,24 +55,21 @@ export function useUser() {
     }
   }, [address, clearUser, clearAgents, clearJobs, clearTransactions]);
 
+  // Account switched — clear stale state and re-authenticate
   useEffect(() => {
     const prev = previousAddress.current;
     previousAddress.current = address;
 
     if (prev && address && prev !== address) {
-      // Account switched — clear stale data and re-authenticate
       clearUser();
       clearAgents();
       clearJobs();
       clearTransactions();
-      syncUser(address, signMessageAsync);
+      signIn(address);
     }
-  }, [address, clearUser, clearAgents, clearJobs, clearTransactions, syncUser, signMessageAsync]);
-
-  // Call this when the user explicitly connects their wallet for the first time
-  async function signIn(walletAddress: string) {
-    return syncUser(walletAddress, signMessageAsync);
-  }
+  // signIn is stable (useCallback), signMessageAsync is accessed via ref
+  }, [address, clearUser, clearAgents, clearJobs, clearTransactions, signIn]);
 
   return { user, isLoading, hydrated, isConnected, isHydrated, address, signIn, clearUser, markOnboarded };
 }
+
