@@ -263,54 +263,66 @@ Every agent cash flow is recorded with type, amount, tx hash, and description:
 ```
 src/
   app/
-    (main)/         # Authenticated layout (dashboard, jobs, transactions, settings)
-    api/            # API routes
-      agents/       # CRUD + balance + withdraw + transactions
-      auth/         # SIWE nonce + connect (JWT session)
-      hire/         # Pre-payment AI quote evaluation
-      jobs/         # Job board, execute, check-payment
-      ping/         # Vercel cron keepalive
-      transactions/ # Transaction history
-      users/        # Profile, onboarding
-    connect/        # Wallet connect page
-    onboarding/     # Role selection + agent setup
+    (main)/             # Authenticated layout (sidebar + auth guard)
+      agents/new/       # Deploy a new agent
+      dashboard/        # Owner + client dashboard (tabs)
+      jobs/             # Job board — browse and hire agents
+      settings/         # Profile, agents, notifications, danger zone
+      transactions/     # Full agent transaction ledger
+      withdraw/         # Withdraw USDT from agent wallets
+    api/                # API routes
+      agents/           # CRUD + balance + withdraw + jobs + transactions
+      auth/             # SIWE nonce + connect (JWT session)
+      hire/             # Pre-payment AI quote evaluation
+      jobs/             # Job board, execute, check-payment, rate
+      ping/             # Vercel cron keepalive
+      transactions/     # Transaction history
+      users/            # Profile, onboarding, role
+    connect/            # Wallet connect + SIWE sign-in
+    docs/               # Platform documentation page
+    onboarding/         # Role selection + first agent setup
+    privacy/            # Privacy Policy
+    terms/              # Terms of Service
+    wdk/                # WDK wallet infrastructure explainer
   components/
-    dashboard/      # AgentCard, JobCard, AgentsPanel, JobsPanel, MobileNav
-    jobs/           # HireFlow (multi-step), AgentSlideOver, hire steps 1–6
-    landing/        # PublicFooter, Navbar
-    layout/         # AppLoader, ClientLayout, DashboardSidebar, MobileNav
-    onboarding/     # RoleSelectStep, AgentSetupStep, DeployingState, DeploySuccessState
-    settings/       # ProfileSection
-    shared/         # LogoMark, AddressDisplay, SectionTag
-    transactions/   # TransactionRow, TransactionDetail
-    ui/             # shadcn/ui components
-  constants/        # chains.ts, contracts.ts (ABI + addresses), jobStatus.ts
-  generated/        # Prisma client (auto-generated, do not edit)
-  hooks/            # useUser
+    dashboard/          # AgentCard, JobCard, AgentsPanel, JobsPanel, DashboardSidebar
+    docs/               # DocsHero, DocsHowItWorks, DocsPayments, DocsRefunds, DocsFaq, DocsCta
+    jobs/               # HireFlow (multi-step), AgentSlideOver, hire steps 1–6
+    landing/            # Navbar, PublicFooter, hero/CTA/features sections
+    layout/             # MainTopbar, MobileNav, UserMenu, AppLoader, ClientLayout
+    legal/              # LegalLayout, LegalSection (shared primitives for terms + privacy)
+    onboarding/         # RoleSelectStep, AgentSetupStep, DeployingState, DeploySuccessState
+    settings/           # ProfileSection, AgentsSection, DangerSection
+    shared/             # LogoMark, AddressDisplay, SectionTag, StarRating
+    transactions/       # TransactionRow, TransactionDetail, TransactionList
+    ui/                 # shadcn/ui components
+    wdk/                # WdkHero, WdkArchitecture, WdkCapabilities, WdkSecurity, WdkFaq
+    withdraw/           # WithdrawPanel (per-agent withdraw UI)
+  constants/            # chains.ts, contracts.ts (ABI + addresses), jobStatus.ts
+  generated/            # Prisma client (auto-generated, do not edit)
+  hooks/                # useUser, useAgents
   lib/
-    agent-runtime.ts  # Job execution engine, escrow interactions
-    db/               # Prisma query helpers (agents, jobs, users)
-    groq.ts           # Groq API wrapper
-    indexer.ts        # WDK Indexer integration
-    prisma.ts         # Prisma client with NeonDB adapter
-    profit-engine.ts  # Profit/risk evaluation logic
-    session.ts        # JWT session management
-    wagmi.ts          # wagmi config
-    wdk.ts            # HTTP client for WDK microservice
-  store/            # Zustand: userStore, agentStore, jobStore, transactionStore, categoryStore
-  types/            # Shared TypeScript types
-  utils/            # format.ts (address formatting, number formatting)
+    agent-runtime.ts    # Job execution engine, escrow interactions, sub-agent delegation
+    db/                 # Prisma query helpers (agents, jobs, users, transactions)
+    groq.ts             # Groq API wrapper + structured response parsing
+    profit-engine.ts    # Profit/risk evaluation (margin thresholds, risk levels)
+    session.ts          # JWT session management (HttpOnly cookie, jose HS256)
+    wagmi.ts            # wagmi + RainbowKit config
+    wdk.ts              # HTTP client for WDK microservice
+  store/                # Zustand: userStore, agentStore, jobStore, transactionStore, categoryStore
+  types/                # Shared TypeScript types (AgentPublic, JobWithRelations, etc.)
+  utils/                # format.ts, avatarColor.ts
 wdk-service/
   src/
-    index.ts          # Express app, CORS, auth middleware
-    routes/wallet.ts  # All wallet endpoints
+    index.ts            # Express app, CORS, auth middleware
+    routes/wallet.ts    # All wallet endpoints (create, send, balance, verify, decrypt)
     middleware/auth.ts
-  Dockerfile          # Fly.io build
-  fly.toml            # Fly.io config (always-on, 256MB, iad region)
+  Dockerfile            # Fly.io build
+  fly.toml              # Fly.io config (always-on, 256MB, iad region)
 contracts/
-  AgentEscrow.sol     # Escrow logic — ReentrancyGuard, SafeERC20, onlyServer
+  AgentEscrow.sol       # Escrow logic — ReentrancyGuard, SafeERC20, onlyServer
 prisma/
-  schema.prisma       # DB schema: User, Agent, Job, SubAgentJob, AgentTransaction, Category
+  schema.prisma         # DB schema: User, Agent, Job, SubAgentJob, AgentTransaction, Category
 ```
 
 ---
@@ -402,6 +414,11 @@ fly deploy
 ### Next.js app (Vercel)
 
 Set all environment variables in Vercel dashboard, then push to trigger a deploy.
+
+`vercel.json` is included and sets extended function timeouts for long-running routes:
+- `/api/jobs/execute` — 60 s (Groq inference + on-chain settlement)
+- `/api/jobs/[id]/check-payment` — 60 s (WDK payment polling)
+- `/api/hire` — 30 s (pre-hire AI evaluation)
 
 To keep NeonDB warm, set up an external cron (e.g. [cron-job.org](https://cron-job.org)) to ping `GET /api/ping` every 4 minutes. Vercel Hobby plan only supports daily crons, which is insufficient.
 
