@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -25,21 +25,28 @@ function AuthPageInner() {
   const next = searchParams.get("next");
   const [faqOpen, setFaqOpen] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  const signingRef = useRef(false);
 
   // Sync user on connect, then redirect based on onboarded flag
   useEffect(() => {
     if (!isConnected || !address) return;
-    
+
     // Wait until the userStore has finished its initial session check (hydration)
     // before deciding if we need to prompt for a new signature.
     if (!hydrated) return;
 
     if (!user) {
+      // Guard against concurrent calls caused by wagmi firing multiple times
+      if (signingRef.current) return;
+      signingRef.current = true;
       setSignInError(null);
-      signIn(address).catch((err: Error) => {
-        // User rejected the signature prompt
-        setSignInError(err?.message?.includes("User rejected") ? "Signature cancelled. Please try again." : "Authentication failed. Please reconnect.");
-      });
+      signIn(address)
+        .catch((err: Error) => {
+          setSignInError(err?.message?.includes("User rejected") ? "Signature cancelled. Please try again." : "Authentication failed. Please reconnect.");
+        })
+        .finally(() => {
+          signingRef.current = false;
+        });
       return;
     }
 

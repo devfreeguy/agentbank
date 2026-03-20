@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAgentWallet } from "@/lib/wdk";
-import { createAgent, getActiveAgents } from "@/lib/db/agents";
+import { createAgent, getActiveAgents, getAgentsByOwner } from "@/lib/db/agents";
 import { getUserByWallet } from "@/lib/db/users";
 import { getCurrentSession } from "@/lib/session";
 import { createAgentSchema } from "@/lib/validations/agentSchema";
@@ -72,8 +72,32 @@ export async function POST(
 export async function GET(
   req: NextRequest,
 ): Promise<NextResponse<ApiSuccess<AgentPublic[]> | ApiError>> {
-  const category = req.nextUrl.searchParams.get("category") ?? undefined;
+  const mine = req.nextUrl.searchParams.get("mine") === "true";
 
+  // ?mine=true — return only the session user's agents
+  if (mine) {
+    const sessionWallet = await getCurrentSession();
+    if (!sessionWallet) {
+      return NextResponse.json<ApiError>({ error: "Unauthorized" }, { status: 401 });
+    }
+    const sessionUser = await getUserByWallet(sessionWallet);
+    if (!sessionUser) {
+      return NextResponse.json<ApiError>({ error: "Unauthorized" }, { status: 401 });
+    }
+    try {
+      const agents = await getAgentsByOwner(sessionUser.id);
+      return NextResponse.json<ApiSuccess<AgentPublic[]>>({ data: agents.map(serializeAgent) });
+    } catch (error) {
+      console.error("[GET /api/agents?mine=true] Failed:", error instanceof Error ? error.message : error);
+      return NextResponse.json<ApiError>(
+        { error: error instanceof Error ? error.message : "Internal server error" },
+        { status: 500 },
+      );
+    }
+  }
+
+  // Public job board listing
+  const category = req.nextUrl.searchParams.get("category") ?? undefined;
   try {
     const agents = await getActiveAgents(category ? { category } : undefined);
     return NextResponse.json<ApiSuccess<AgentPublic[]>>({
@@ -82,9 +106,7 @@ export async function GET(
   } catch (error) {
     console.error("[GET /api/agents] Failed to fetch agents:", error instanceof Error ? error.message : error);
     return NextResponse.json<ApiError>(
-      {
-        error: error instanceof Error ? error.message : "Internal server error",
-      },
+      { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 },
     );
   }

@@ -107,7 +107,7 @@ export const useAgentStore = create<AgentState & AgentActions>()(
       });
       try {
         const res = await axiosClient.get<{ data: AgentPublic[] }>(
-          `/api/agents?ownerId=${ownerId}`
+          `/api/agents?mine=true`
         );
         if (res.data?.data) {
           set((state) => {
