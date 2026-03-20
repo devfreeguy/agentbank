@@ -17,11 +17,13 @@ export function useUser() {
     isLoading,
     hydrated,
     hasAttemptedAuth,
+    signInError,
     clearUser,
     syncUser,
     fetchUser,
     markOnboarded,
     setHasAttemptedAuth,
+    setSignInError,
   } = useUserStore();
   const clearAgents = useAgentStore((s) => s.clearAgents);
   const clearJobs = useJobStore((s) => s.clearJobs);
@@ -38,15 +40,27 @@ export function useUser() {
   const signIn = useCallback(
     async (walletAddress: string) => {
       try {
+        setSignInError(null);
         await syncUser(walletAddress, signMessageRef.current);
       } catch (error) {
-        // If the user rejects the signature in MetaMask, unlock it so they can try again later
-        isGlobalAuthTriggered = false;
-        setHasAttemptedAuth(false);
+        // Keep isGlobalAuthTriggered = true and hasAttemptedAuth = true so wagmi
+        // re-fires do NOT auto-prompt again. User must click "Try again" explicitly.
+        const msg = error instanceof Error ? error.message : String(error);
+        setSignInError(
+          msg.includes("User rejected") || msg.includes("user rejected")
+            ? "You cancelled the signature request."
+            : "Authentication failed. Please try again.",
+        );
       }
     },
-    [syncUser, setHasAttemptedAuth],
+    [syncUser, setSignInError],
   );
+
+  const resetSignIn = useCallback(() => {
+    isGlobalAuthTriggered = false;
+    setHasAttemptedAuth(false);
+    setSignInError(null);
+  }, [setHasAttemptedAuth, setSignInError]);
 
   // Re-fetch existing user / Trigger Sign-In
   useEffect(() => {
@@ -133,6 +147,8 @@ export function useUser() {
     isHydrated,
     address,
     signIn,
+    signInError,
+    resetSignIn,
     clearUser,
     markOnboarded,
   };

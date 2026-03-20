@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -19,48 +19,23 @@ import { useUser } from "@/hooks/useUser";
 import { PublicFooter } from "@/components/landing/PublicFooter";
 
 function AuthPageInner() {
-  const { isConnected, user, hydrated, signIn, address } = useUser();
+  const { isConnected, user, signInError, resetSignIn } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
   const [faqOpen, setFaqOpen] = useState(false);
-  const [signInError, setSignInError] = useState<string | null>(null);
-  const signingRef = useRef(false);
 
-  // Sync user on connect, then redirect based on onboarded flag
+  // Redirect once authenticated
   useEffect(() => {
-    if (!isConnected || !address) return;
-
-    // Wait until the userStore has finished its initial session check (hydration)
-    // before deciding if we need to prompt for a new signature.
-    if (!hydrated) return;
-
-    if (!user) {
-      // Guard: if already signing or user has dismissed, do not re-prompt
-      if (signingRef.current) return;
-      signingRef.current = true;
-      setSignInError(null);
-      signIn(address).catch((err: Error) => {
-        // Keep signingRef = true so wagmi re-fires don't auto-prompt again
-        setSignInError(
-          err?.message?.includes("User rejected")
-            ? "You cancelled the signature request."
-            : "Authentication failed. Please try again.",
-        );
-      });
-      return;
+    if (!user) return;
+    if (!user.onboarded) {
+      router.replace("/onboarding");
+    } else if (next && next.startsWith("/")) {
+      router.replace(next);
+    } else {
+      router.replace("/dashboard");
     }
-
-    if (user) {
-      if (!user.onboarded) {
-        router.replace("/onboarding");
-      } else if (next && next.startsWith("/")) {
-        router.replace(next);
-      } else {
-        router.replace("/dashboard");
-      }
-    }
-  }, [isConnected, address, user, hydrated, signIn, router]);
+  }, [user, next, router]);
 
   // While connected: show overlay for both pending and error states
   if (isConnected) {
@@ -96,10 +71,7 @@ function AuthPageInner() {
                 </p>
               </div>
               <button
-                onClick={() => {
-                  signingRef.current = false;
-                  setSignInError(null);
-                }}
+                onClick={resetSignIn}
                 className="mt-1 px-5 py-2.25 bg-(--orange) text-white text-[13px] font-medium rounded-[8px] hover:opacity-90 transition-opacity duration-150"
               >
                 Try again

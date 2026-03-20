@@ -9,6 +9,7 @@ interface UserState {
   isLoading: boolean;
   hydrated: boolean;
   hasAttemptedAuth: boolean;
+  signInError: string | null;
 }
 
 type SignMessageAsync = (args: { message: string }) => Promise<`0x${string}`>;
@@ -24,6 +25,7 @@ interface UserActions {
   markOnboarded: (walletAddress: string) => Promise<void>;
   updateRole: (walletAddress: string, role: string) => Promise<void>;
   setHasAttemptedAuth: (value: boolean) => void;
+  setSignInError: (error: string | null) => void;
 }
 
 export const useUserStore = create<UserState & UserActions>()(
@@ -32,6 +34,7 @@ export const useUserStore = create<UserState & UserActions>()(
     isLoading: false,
     hydrated: false,
     hasAttemptedAuth: false,
+    signInError: null,
 
     setUser: (user) =>
       set((state) => {
@@ -43,6 +46,7 @@ export const useUserStore = create<UserState & UserActions>()(
         state.user = null;
         state.hydrated = false;
         state.hasAttemptedAuth = false;
+        state.signInError = null;
       }),
 
     syncUser: async (
@@ -167,6 +171,11 @@ export const useUserStore = create<UserState & UserActions>()(
     setHasAttemptedAuth: (value: boolean) =>
       set((state) => {
         state.hasAttemptedAuth = value;
+      }),
+
+    setSignInError: (error: string | null) =>
+      set((state) => {
+        state.signInError = error;
       }),
   })),
 );
