@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Star } from "lucide-react";
+import { Star, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatAddress, formatUsdt } from "@/utils/format";
 import { getAvatarColor } from "@/utils/avatarColor";
@@ -38,94 +38,86 @@ export function AgentCard({ agent, categories, onClick }: AgentCardProps) {
     <div
       onClick={onClick}
       className={cn(
-        "w-full group bg-sidebar border border-(--border-med) rounded-[14px] p-4.5 cursor-pointer",
-        "flex flex-col transition-all duration-200",
-        "hover:border-(--orange) hover:-translate-y-px"
+        "w-full group bg-sidebar border rounded-[16px] p-4.5 cursor-pointer",
+        "flex flex-col gap-3 transition-all duration-200",
+        isActive
+          ? "border-[rgba(255,255,255,0.08)] hover:border-[rgba(232,121,58,0.35)] hover:-translate-y-px hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
+          : "border-[rgba(255,255,255,0.05)] opacity-75 hover:opacity-90"
       )}
     >
-      {/* Top: avatar + title */}
-      <div className="flex items-start mb-3">
-        <div
-          className="w-10.5 h-10.5 rounded-[11px] flex items-center justify-center shrink-0 font-head text-[16px] font-bold text-foreground"
-          style={{ background: avatarBg }}
-        >
-          {initial}
-        </div>
-        
-        <div className="flex-1 ml-2.5">
-          <div className="font-head text-[14px] font-bold flex items-center gap-1.5 leading-[1.2]">
-            <div
-              className={cn(
-                "w-1.5 h-1.5 rounded-full shrink-0",
-                isActive ? "bg-(--green)" : "bg-(--hint)"
-              )}
-            />
-            {agent.name}
+      {/* Header row: avatar + name + price */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <div
+            className="w-10 h-10 rounded-[11px] flex items-center justify-center shrink-0 font-head text-[16px] font-bold text-white"
+            style={{ background: avatarBg }}
+          >
+            {initial}
           </div>
-
-          <div className="flex gap-1 flex-wrap mt-1.25">
-            {visibleCats.map((name) => (
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 mb-1">
               <span
-                key={name}
-                className="text-[10px] px-1.75 py-0.5 rounded-full bg-secondary border border-border text-(--hint) whitespace-nowrap"
-              >
-                {name}
-              </span>
-            ))}
-
-            {extraCount > 0 && (
-              <span className="text-[10px] text-(--hint) px-1.25 py-0.5">
-                +{extraCount}
-              </span>
-            )}
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full shrink-0",
+                  isActive ? "bg-(--green)" : "bg-(--hint)"
+                )}
+              />
+              <span className="font-head text-[14px] font-semibold truncate">{agent.name}</span>
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {visibleCats.map((name) => (
+                <span
+                  key={name}
+                  className="text-[10px] px-1.75 py-[2px] rounded-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.07)] text-(--hint) whitespace-nowrap"
+                >
+                  {name}
+                </span>
+              ))}
+              {extraCount > 0 && (
+                <span className="text-[10px] text-(--hint) px-1 py-[2px]">+{extraCount}</span>
+              )}
+            </div>
           </div>
+        </div>
+
+        {/* Price */}
+        <div className="shrink-0 text-right">
+          <div className="font-mono text-[15px] font-semibold text-(--orange) leading-none">
+            {formatUsdt(agent.pricePerTask)}
+          </div>
+          <div className="text-[10px] text-(--hint) mt-0.5">per task</div>
         </div>
       </div>
 
       {/* Description */}
-      <p className="text-[12px] text-muted-foreground leading-[1.55] mb-3 flex-1 font-light line-clamp-2">
+      <p className="text-[12px] text-muted-foreground leading-[1.6] line-clamp-2 font-light flex-1 -mt-0.5">
         {agent.systemPrompt}
       </p>
 
-      {/* Stats */}
-      <div className="flex items-center gap-2.5 mb-3 text-[12px] text-muted-foreground flex-wrap">
-        <span className="flex items-center gap-0.75">
-          <Star size={11} className="text-amber-400 fill-amber-400" />
-          {agent.rating.toFixed(1)}
-        </span>
-        <span>·</span>
-        <span>{agent.jobsCompleted} jobs</span>
-        <span className="font-mono text-[13px] font-medium text-foreground ml-auto">
-          {formatUsdt(agent.pricePerTask)}
-        </span>
-      </div>
+      {/* Footer: stats + hire button */}
+      <div className="flex items-center justify-between gap-2 pt-0.5 border-t border-[rgba(255,255,255,0.06)]">
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Star size={10} className="text-amber-400 fill-amber-400" />
+            {agent.rating.toFixed(1)}
+          </span>
+          <span className="flex items-center gap-1">
+            <Zap size={10} className="text-(--hint)" strokeWidth={1.6} />
+            {agent.jobsCompleted} jobs
+          </span>
+        </div>
 
-      {/* Wallet address */}
-      <div className="font-mono text-[10px] text-(--hint) bg-card border border-border rounded-[6px] px-2 py-1 mb-3 flex items-center gap-1.25 overflow-hidden">
-        <div
+        <button
           className={cn(
-            "w-1 h-1 rounded-full shrink-0",
-            isActive ? "bg-(--green)" : "bg-(--hint)"
+            "px-3.5 py-1.5 rounded-[8px] text-[12px] font-medium cursor-pointer transition-all duration-200",
+            isActive
+              ? "bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-muted-foreground group-hover:bg-(--orange) group-hover:border-(--orange) group-hover:text-white"
+              : "bg-transparent border border-[rgba(255,255,255,0.06)] text-(--hint) cursor-default"
           )}
-        />
-        <span className="whitespace-nowrap overflow-hidden text-ellipsis">
-          {formatAddress(agent.walletAddress)}
-        </span>
+        >
+          {isActive ? "Hire" : "Paused"}
+        </button>
       </div>
-
-      {/* Hire button */}
-      <button
-        className={cn(
-          "w-full py-2.5 bg-card border border-(--border-med) rounded-[9px]",
-          "text-[13px] font-medium text-muted-foreground font-body cursor-pointer",
-          "flex items-center justify-center gap-1.5 transition-all duration-200",
-          "group-hover:bg-(--orange) group-hover:border-(--orange) group-hover:text-white",
-          !isActive && "opacity-60"
-        )}
-      >
-        <Plus size={13} strokeWidth={1.5} />
-        {isActive ? "Hire agent" : "Currently paused"}
-      </button>
     </div>
   );
 }

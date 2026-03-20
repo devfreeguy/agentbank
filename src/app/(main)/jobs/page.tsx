@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { MainTopbar } from "@/components/layout/MainTopbar";
 import { JobBoardFilters, type FilterState } from "@/components/jobs/JobBoardFilters";
@@ -24,6 +25,20 @@ export default function JobsPage() {
   const { categories } = useCategories();
   const { user, address } = useUser();
   const { addJob } = useJobs();
+  const searchParams = useSearchParams();
+  const hireAgentId = searchParams.get("hire");
+  const autoOpenedRef = useRef(false);
+
+  function handleCloseSlideOver() {
+    setSlideOverOpen(false);
+    if (hireAgentId) {
+      // Strip the ?hire= param without adding a browser history entry
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("hire");
+      const newUrl = params.size ? `/jobs?${params.toString()}` : "/jobs";
+      window.history.replaceState(null, "", newUrl);
+    }
+  }
 
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [selectedAgent, setSelectedAgent] = useState<AgentPublic | null>(null);
@@ -32,6 +47,17 @@ export default function JobsPage() {
   useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
+
+  // Auto-open slide over when coming from landing page hire button
+  useEffect(() => {
+    if (!hireAgentId || autoOpenedRef.current || !agents.length) return;
+    const agent = agents.find((a) => a.id === hireAgentId);
+    if (agent) {
+      autoOpenedRef.current = true;
+      setSelectedAgent(agent);
+      setSlideOverOpen(true);
+    }
+  }, [agents, hireAgentId]);
 
   function handleSelectAgent(agent: AgentPublic) {
     setSelectedAgent(agent);
@@ -124,7 +150,7 @@ export default function JobsPage() {
       <AgentSlideOver
         agent={selectedAgent}
         open={slideOverOpen}
-        onClose={() => setSlideOverOpen(false)}
+        onClose={handleCloseSlideOver}
         user={user}
         onJobAdded={handleJobAdded}
         showToast={(msg) => toast(msg)}

@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { formatAddress } from "@/utils/format";
-import { useUser } from "@/hooks/useUser";
+import { usePathname } from "next/navigation";
 import { UserMenu } from "@/components/layout/UserMenu";
 
 interface MainTopbarProps {
@@ -12,26 +11,39 @@ interface MainTopbarProps {
 }
 
 export function MainTopbar({ title, subtitle, actions }: MainTopbarProps) {
-  const { address } = useUser();
-
   return (
-    <div className="w-full max-w-screen flex items-center justify-between px-6.5 py-4 border-b border-border sticky top-0 z-10 bg-background flex-wrap gap-2.5">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-head text-[20px] font-bold">{title}</h1>
-        {subtitle && <div>{subtitle}</div>}
-      </div>
+    <div className="w-full min-h-16 sticky top-0 z-10 bg-background/96 backdrop-blur-sm border-b border-border shrink-0">
+      {/* Main row — always exactly one line, no wrapping */}
+      <div className="h-full flex items-center h-14.25 px-6.5 gap-4 max-[560px]:px-4">
+        {/* Left: title */}
+        <div className="flex-1 min-w-0 flex items-center gap-3">
+          <h1 className="font-head text-[16px] font-semibold leading-none truncate text-foreground">
+            {title}
+          </h1>
 
-      <div className="flex items-center gap-2.5 flex-wrap">
-        {/* Address pill — hidden below 900px */}
-        <div className="hidden min-[900px]:flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground bg-card border border-(--border-med) px-3 py-1.5 rounded-full">
-          <div className="w-1.25 h-1.25 rounded-full bg-(--green)" />
-          {address ? formatAddress(address) : "—"}
+          {/* Inline subtitle — only rendered when compact (badge/pill variants) */}
+          {subtitle && (
+            <div className="hidden sm:flex items-center shrink-0">
+              {subtitle}
+            </div>
+          )}
         </div>
 
-        {actions}
-
-        <UserMenu />
+        {/* Right: actions + avatar — pinned, never wraps */}
+        <div className="flex items-center gap-2 shrink-0">
+          {actions && (
+            <div className="flex items-center gap-2">{actions}</div>
+          )}
+          <UserMenu />
+        </div>
       </div>
+
+      {/* Mobile subtitle row — only shows on small screens */}
+      {subtitle && (
+        <div className="sm:hidden px-4 pb-2.5 -mt-1">
+          {subtitle}
+        </div>
+      )}
     </div>
   );
 }

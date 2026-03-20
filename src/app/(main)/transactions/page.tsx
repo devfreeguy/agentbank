@@ -90,11 +90,6 @@ export default function TransactionsPage() {
     <>
       <MainTopbar
         title="Transactions"
-        subtitle={
-          <p className="text-[13px] text-muted-foreground">
-            Your complete payment history — earnings, spending, and withdrawals
-          </p>
-        }
         actions={
           <button
             onClick={() => exportToCsv(filteredTransactions, agentMap)}

@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { Loader2 } from "lucide-react";
+import { Loader2, ExternalLink, RotateCcw, Banknote, Eye, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/utils/format";
+import { getAvatarColor } from "@/utils/avatarColor";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,7 @@ import {
 import axiosClient from "@/lib/axiosClient";
 import { startJobPoll, stopJobPoll, setJobCallbacks } from "@/lib/backgroundPolls";
 import { useJobStore } from "@/store/jobStore";
+import { StarRating } from "@/components/shared/StarRating";
 import type { JobWithRelations } from "@/types/index";
 import type { JobStatus } from "@/generated/prisma/enums";
 
@@ -26,24 +28,35 @@ interface JobCardProps {
   onResumeFlow?: () => void;
 }
 
-const STATUS_STYLES: Record<JobStatus, string> = {
-  PENDING:
-    "bg-[rgba(59,130,246,0.1)] border border-[rgba(59,130,246,0.2)] text-[#3b82f6]",
-  PAID: "bg-[var(--orange-dim)] border border-[var(--orange-border)] text-[var(--orange)]",
-  IN_PROGRESS:
-    "bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.18)] text-[#fbbf24]",
-  DELIVERED:
-    "bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.2)] text-[var(--green)]",
-  FAILED:
-    "bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.18)] text-[#ef4444]",
-};
-
-const STATUS_LABEL: Record<JobStatus, string> = {
-  PENDING: "Pending",
-  PAID: "Paid",
-  IN_PROGRESS: "In progress",
-  DELIVERED: "Delivered",
-  FAILED: "Failed",
+const STATUS_CONFIG: Record<
+  JobStatus,
+  { label: string; dot: string; badge: string }
+> = {
+  PENDING: {
+    label: "Pending",
+    dot: "bg-[#3b82f6]",
+    badge: "bg-[rgba(59,130,246,0.1)] border-[rgba(59,130,246,0.2)] text-[#3b82f6]",
+  },
+  PAID: {
+    label: "Paid",
+    dot: "bg-(--orange)",
+    badge: "bg-(--orange-dim) border-(--orange-border) text-(--orange)",
+  },
+  IN_PROGRESS: {
+    label: "In progress",
+    dot: "bg-[#fbbf24] animate-pulse",
+    badge: "bg-[rgba(251,191,36,0.08)] border-[rgba(251,191,36,0.2)] text-[#fbbf24]",
+  },
+  DELIVERED: {
+    label: "Delivered",
+    dot: "bg-(--green)",
+    badge: "bg-[rgba(34,197,94,0.1)] border-[rgba(34,197,94,0.2)] text-(--green)",
+  },
+  FAILED: {
+    label: "Failed",
+    dot: "bg-[#ef4444]",
+    badge: "bg-[rgba(239,68,68,0.08)] border-[rgba(239,68,68,0.18)] text-[#ef4444]",
+  },
 };
 
 export function JobCard({ job, isNew, onViewed, onResumeFlow }: JobCardProps) {
@@ -59,6 +72,9 @@ export function JobCard({ job, isNew, onViewed, onResumeFlow }: JobCardProps) {
 
   const updateJob = useJobStore((s) => s.updateJob);
   const status = job.status as JobStatus;
+  const { label, dot, badge } = STATUS_CONFIG[status];
+  const avatarBg = getAvatarColor(job.agentId);
+  const initial = job.agent.name.charAt(0).toUpperCase();
 
   async function handleRetry() {
     setRetrying(true);
@@ -66,11 +82,8 @@ export function JobCard({ job, isNew, onViewed, onResumeFlow }: JobCardProps) {
     try {
       await axiosClient.patch(`/api/jobs/${job.id}`, { status: "PAID" });
       await axiosClient.post(`/api/jobs/${job.id}/run`);
-      // Immediately reflect IN_PROGRESS in the store so the card updates now
       updateJob(job.id, { status: "IN_PROGRESS" as JobStatus });
-      // Stop any stale poll before starting fresh
       stopJobPoll(job.id);
-
       setJobCallbacks(job.id, {
         onDelivered: () => setPollingForRetry(false),
         onFailed: () => {
@@ -106,145 +119,163 @@ export function JobCard({ job, isNew, onViewed, onResumeFlow }: JobCardProps) {
     setOutputOpen(true);
   }
 
+  const isFailed = status === "FAILED" && !retrying && !pollingForRetry;
+  const isInProgress = status === "IN_PROGRESS" || pollingForRetry;
+
   return (
     <>
       <div
         className={cn(
-          "bg-sidebar border border-(--border-med) rounded-[12px] px-4 py-3.5 flex items-center gap-3 transition-colors hover:border-[rgba(255,255,255,0.17)]",
-          status === "FAILED" && !retrying && !pollingForRetry && "opacity-70",
+          "group relative bg-sidebar rounded-[14px] border overflow-hidden transition-all duration-200",
+          status === "DELIVERED"
+            ? "border-[rgba(34,197,94,0.15)] hover:border-[rgba(34,197,94,0.25)]"
+            : isFailed
+            ? "border-[rgba(239,68,68,0.12)] hover:border-[rgba(239,68,68,0.2)] opacity-80"
+            : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)]"
         )}
       >
-        {/* Avatar */}
-        <div className="relative w-8.5 h-8.5 shrink-0">
-          <div className="w-full h-full rounded-[8px] bg-[rgba(99,102,241,0.12)] flex items-center justify-center text-[16px]">
-            🤖
-          </div>
-          {status === "IN_PROGRESS" && (
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-(--orange) animate-pulse border-2 border-background" />
+        {/* Status left accent */}
+        <div
+          className={cn(
+            "absolute left-0 top-0 bottom-0 w-[2.5px] transition-opacity duration-200",
+            status === "DELIVERED" && "bg-(--green) opacity-60",
+            status === "IN_PROGRESS" && "bg-[#fbbf24] opacity-50",
+            status === "FAILED" && "bg-[#ef4444] opacity-40",
+            status === "PENDING" && "bg-[#3b82f6] opacity-30",
+            status === "PAID" && "bg-(--orange) opacity-40",
           )}
-        </div>
+        />
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="text-[12px] font-medium text-muted-foreground mb-0.75">
-            {job.agent.name}
+        <div className="pl-5 pr-4 py-3.5 flex items-center gap-3">
+          {/* Avatar */}
+          <div className="relative shrink-0">
+            <div
+              className="w-9 h-9 rounded-[10px] flex items-center justify-center text-[14px] font-bold font-head text-white"
+              style={{ background: avatarBg }}
+            >
+              {initial}
+            </div>
+            {isInProgress && (
+              <span className="absolute -top-0.75 -right-0.75 w-2.5 h-2.5 rounded-full bg-[#fbbf24] border-2 border-sidebar animate-pulse" />
+            )}
           </div>
-          <div className="text-[13px] text-foreground truncate whitespace-break-spaces line-clamp-2">
-            {job.taskDescription}
+
+          {/* Main info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[11px] font-medium text-muted-foreground truncate">
+                {job.agent.name}
+              </span>
+              <span className="text-[rgba(255,255,255,0.15)]">·</span>
+              <span className="text-[11px] text-(--hint) shrink-0">
+                {formatRelativeTime(job.createdAt)}
+              </span>
+            </div>
+            <div className="text-[13px] text-foreground leading-[1.4] line-clamp-1 mb-1.5">
+              {job.taskDescription}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-[3px] rounded-full border tracking-[.03em]",
+                  badge
+                )}
+              >
+                <span className={cn("w-1.25 h-1.25 rounded-full shrink-0", dot)} />
+                {label}
+              </span>
+              {isNew && status === "DELIVERED" && (
+                <span className="text-[10px] font-medium px-2 py-[3px] rounded-full bg-[rgba(34,197,94,0.12)] border border-[rgba(34,197,94,0.25)] text-(--green)">
+                  New
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2 mt-1.25">
+
+          {/* Right side */}
+          <div className="flex flex-col items-end gap-2 shrink-0">
             <span
               className={cn(
-                "text-[10px] font-medium px-2 py-0.5 rounded-full tracking-[.04em]",
-                STATUS_STYLES[status],
+                "font-mono text-[12px] font-semibold",
+                isFailed ? "text-(--hint)" : "text-foreground"
               )}
             >
-              {STATUS_LABEL[status]}
+              {parseFloat(job.priceUsdt).toFixed(2)}{" "}
+              <span className="text-[10px] font-normal text-muted-foreground">USDT</span>
             </span>
-            {isNew && status === "DELIVERED" && (
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full tracking-[.04em] bg-[rgba(34,197,94,0.12)] border border-[rgba(34,197,94,0.25)] text-(--green)">
-                New
-              </span>
+
+            {/* Action buttons */}
+            {status === "DELIVERED" && (
+              <button
+                onClick={handleViewOutput}
+                className="flex items-center gap-1 px-2.5 py-1.25 bg-(--orange-dim) border border-(--orange-border) rounded-[7px] text-[11px] text-(--orange) hover:bg-[rgba(232,121,58,0.18)] transition-colors cursor-pointer"
+              >
+                <Eye size={10} strokeWidth={1.8} />
+                View
+              </button>
             )}
-            <span className="text-[11px] text-(--hint)">
-              {formatRelativeTime(job.createdAt)}
-            </span>
+
+            {status === "PENDING" && (
+              <button
+                onClick={() => onResumeFlow ? onResumeFlow() : setPayOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1.25 bg-(--orange-dim) border border-(--orange-border) rounded-[7px] text-[11px] text-(--orange) hover:bg-[rgba(232,121,58,0.18)] transition-colors cursor-pointer"
+              >
+                <CreditCard size={10} strokeWidth={1.8} />
+                Pay now
+              </button>
+            )}
+
+            {(status === "IN_PROGRESS" || status === "PAID") && (
+              <button
+                onClick={handleViewOutput}
+                className="flex items-center gap-1 px-2.5 py-1.25 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-[7px] text-[11px] text-muted-foreground hover:text-foreground hover:border-[rgba(255,255,255,0.14)] transition-colors cursor-pointer"
+              >
+                <ExternalLink size={10} strokeWidth={1.8} />
+                View task
+              </button>
+            )}
+
+            {status === "FAILED" && (
+              refunded ? (
+                <span className="text-[11px] text-(--hint) font-medium">Refunded</span>
+              ) : retrying || refunding ? (
+                <div className="flex items-center gap-1.25 text-[11px] text-muted-foreground">
+                  <Loader2 size={10} className="animate-spin" />
+                  {retrying ? "Retrying…" : "Refunding…"}
+                </div>
+              ) : pollingForRetry ? (
+                <div className="flex items-center gap-1.25 text-[11px] text-muted-foreground">
+                  <span className="w-1.5 h-1.5 rounded-full bg-(--orange) animate-pulse shrink-0" />
+                  Running…
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={handleRetry}
+                    className="flex items-center gap-1 px-2.5 py-1.25 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-[7px] text-[11px] text-muted-foreground hover:text-foreground hover:border-[rgba(255,255,255,0.14)] transition-colors cursor-pointer"
+                  >
+                    <RotateCcw size={9} strokeWidth={1.8} />
+                    Retry
+                  </button>
+                  <button
+                    onClick={handleRefund}
+                    className="flex items-center gap-1 px-2.5 py-1.25 bg-[rgba(239,68,68,0.06)] border border-[rgba(239,68,68,0.18)] rounded-[7px] text-[11px] text-[#ef4444] hover:bg-[rgba(239,68,68,0.12)] transition-colors cursor-pointer"
+                  >
+                    <Banknote size={9} strokeWidth={1.8} />
+                    Refund
+                  </button>
+                </div>
+              )
+            )}
           </div>
-          {status === "FAILED" && (
-            <div className="mt-1 text-[11px] text-muted-foreground font-light leading-[1.5]">
-              {retryError ?? "This job failed due to a network error. Your agent will retry automatically, or you can retry manually."}
-            </div>
-          )}
         </div>
 
-        {/* Right */}
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <span
-            className={cn(
-              "font-mono text-[13px] font-medium",
-              status === "FAILED" && "text-(--hint)",
-            )}
-          >
-            {parseFloat(job.priceUsdt).toFixed(2)} USDT
-          </span>
-
-          {status === "DELIVERED" && (
-            <button
-              onClick={handleViewOutput}
-              className="px-2.75 py-1.25 bg-(--orange-dim) border border-(--orange-border) rounded-[6px] text-[11px] text-(--orange) hover:bg-[rgba(232,121,58,0.18)] transition-colors cursor-pointer"
-            >
-              View output
-            </button>
-          )}
-          {status === "PENDING" && (
-            <button
-              onClick={() => {
-                if (onResumeFlow) {
-                  onResumeFlow();
-                } else {
-                  setPayOpen(true);
-                }
-              }}
-              className="px-2.75 py-1.25 bg-(--orange-dim) border border-(--orange-border) rounded-[6px] text-[11px] text-(--orange) hover:bg-[rgba(232,121,58,0.18)] transition-colors cursor-pointer"
-            >
-              Pay now
-            </button>
-          )}
-          {status === "FAILED" && (
-            refunded ? (
-              <span className="px-2.75 py-1.25 text-[11px] text-muted-foreground">
-                Refunded
-              </span>
-            ) : retrying ? (
-              <button
-                disabled
-                className="flex items-center gap-1.5 px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground opacity-60 cursor-not-allowed"
-              >
-                <Loader2 size={11} className="animate-spin" />
-                Retrying…
-              </button>
-            ) : pollingForRetry ? (
-              <button
-                disabled
-                className="flex items-center gap-1.5 px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground cursor-not-allowed"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-(--orange) animate-pulse shrink-0" />
-                Running…
-              </button>
-            ) : refunding ? (
-              <button
-                disabled
-                className="flex items-center gap-1.5 px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground opacity-60 cursor-not-allowed"
-              >
-                <Loader2 size={11} className="animate-spin" />
-                Refunding…
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleRetry}
-                  className="px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground hover:text-foreground hover:border-[rgba(255,255,255,0.17)] transition-colors cursor-pointer"
-                >
-                  Retry
-                </button>
-                <button
-                  onClick={handleRefund}
-                  className="px-2.75 py-1.25 bg-[rgba(239,68,68,0.06)] border border-[rgba(239,68,68,0.18)] rounded-[6px] text-[11px] text-[#ef4444] hover:bg-[rgba(239,68,68,0.12)] transition-colors cursor-pointer"
-                >
-                  Refund
-                </button>
-              </div>
-            )
-          )}
-          {(status === "IN_PROGRESS" || status === "PAID") && (
-            <button
-              onClick={handleViewOutput}
-              className="px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            >
-              View task
-            </button>
-          )}
-        </div>
+        {/* Failed error row */}
+        {status === "FAILED" && !refunded && retryError && (
+          <div className="mx-5 mb-3 px-3 py-2 rounded-[8px] bg-[rgba(239,68,68,0.06)] border border-[rgba(239,68,68,0.12)] text-[11px] text-[rgba(239,68,68,0.8)] leading-[1.5]">
+            {retryError}
+          </div>
+        )}
       </div>
 
       {/* Output dialog */}
@@ -269,6 +300,11 @@ export function JobCard({ job, isNew, onViewed, onResumeFlow }: JobCardProps) {
               <p className="text-[13px] text-muted-foreground">No output recorded.</p>
             )}
           </div>
+          {status === "DELIVERED" && (
+            <div className="flex justify-center pt-1">
+              <StarRating jobId={job.id} initialRating={job.clientRating} />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -291,9 +327,7 @@ export function JobCard({ job, isNew, onViewed, onResumeFlow }: JobCardProps) {
               {job.agent.walletAddress}
             </div>
             <button
-              onClick={() =>
-                navigator.clipboard.writeText(job.agent.walletAddress)
-              }
+              onClick={() => navigator.clipboard.writeText(job.agent.walletAddress)}
               className="mt-2 text-[11px] text-(--orange) hover:underline cursor-pointer"
             >
               Copy address

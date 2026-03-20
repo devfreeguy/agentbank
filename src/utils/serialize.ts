@@ -62,6 +62,7 @@ export function serializeJob(raw: {
   status: JobWithRelations["status"];
   output: string | null;
   txHash: string | null;
+  clientRating: number | null;
   createdAt: Date;
   updatedAt: Date;
   agent: RawAgent;

@@ -41,6 +41,7 @@ export type JobWithRelations = {
   status: JobStatus;
   output: string | null;
   txHash: string | null;
+  clientRating: number | null;
   createdAt: Date;
   updatedAt: Date;
   agent: AgentPublic;

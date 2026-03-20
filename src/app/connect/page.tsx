@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ChevronLeft, ChevronDown, Lock, Wallet } from "lucide-react";
@@ -17,9 +17,11 @@ import {
 import { useUser } from "@/hooks/useUser";
 import { PublicFooter } from "@/components/landing/PublicFooter";
 
-export default function AuthPage() {
+function AuthPageInner() {
   const { isConnected, user, hydrated, signIn, address } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next");
   const [faqOpen, setFaqOpen] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
 
@@ -41,10 +43,12 @@ export default function AuthPage() {
     }
 
     if (user) {
-      if (user.onboarded) {
-        router.replace("/dashboard");
-      } else {
+      if (!user.onboarded) {
         router.replace("/onboarding");
+      } else if (next && next.startsWith("/")) {
+        router.replace(next);
+      } else {
+        router.replace("/dashboard");
       }
     }
   }, [isConnected, address, user, hydrated, signIn, router]);
@@ -223,5 +227,13 @@ export default function AuthPage() {
       {/* Footer */}
       <PublicFooter />
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense>
+      <AuthPageInner />
+    </Suspense>
   );
 }

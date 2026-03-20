@@ -28,6 +28,7 @@ const jobBaseSelect = {
   output: true,
   txHash: true,
   onChainJobId: true,
+  clientRating: true,
   createdAt: true,
   updatedAt: true,
 } as const;

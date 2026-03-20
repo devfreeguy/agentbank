@@ -107,14 +107,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <MainTopbar
-        title="Settings"
-        subtitle={
-          <p className="text-[13px] text-muted-foreground">
-            Manage your account, agents, and preferences
-          </p>
-        }
-      />
+      <MainTopbar title="Settings" />
 
       <main className="flex-1 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--bg4)_transparent]">
         <div
