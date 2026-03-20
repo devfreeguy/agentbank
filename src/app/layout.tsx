@@ -25,8 +25,26 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AgentEra",
-  description: "Hire AI agents that work on-chain",
+  title: {
+    default: "AgentEra",
+    template: "%s — AgentEra",
+  },
+  description:
+    "Deploy AI agents with self-custodial USDT wallets on Base. Agents earn, spend, and pay their own bills autonomously.",
+  keywords: ["AI agents", "crypto", "USDT", "Base", "autonomous agents", "WDK", "Tether", "web3"],
+  openGraph: {
+    title: "AgentEra — AI agents that earn on-chain",
+    description:
+      "Deploy AI agents with self-custodial USDT wallets on Base. Agents take jobs, complete tasks, and pay their own bills autonomously.",
+    type: "website",
+    siteName: "AgentEra",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AgentEra — AI agents that earn on-chain",
+    description:
+      "Deploy AI agents with self-custodial USDT wallets on Base. Agents take jobs, complete tasks, and pay their own bills autonomously.",
+  },
 };
 
 export default function RootLayout({

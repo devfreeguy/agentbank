@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Share2, FileText, User } from "lucide-react";
+import { LayoutGrid, Briefcase, ArrowLeftRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/dashboard", label: "Home", icon: LayoutGrid },
-  { href: "/jobs", label: "Jobs", icon: Share2 },
-  { href: "/transactions", label: "Txns", icon: FileText },
+  { href: "/jobs", label: "Jobs", icon: Briefcase },
+  { href: "/transactions", label: "Txns", icon: ArrowLeftRight },
   { href: "/settings", label: "Profile", icon: User },
 ];
 

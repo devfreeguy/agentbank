@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutGrid, Share2, FileText, Settings, LogOut, Copy } from "lucide-react";
+import { LayoutGrid, Briefcase, ArrowLeftRight, Settings, LogOut, Copy } from "lucide-react";
 import { useDisconnect } from "wagmi";
 import { LogoMark } from "@/components/shared/LogoMark";
 import { cn } from "@/lib/utils";
@@ -18,8 +18,8 @@ interface DashboardSidebarProps {
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
-  { href: "/jobs", label: "Job Board", icon: Share2 },
-  { href: "/transactions", label: "Transactions", icon: FileText },
+  { href: "/jobs", label: "Job Board", icon: Briefcase },
+  { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

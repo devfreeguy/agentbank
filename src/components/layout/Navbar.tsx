@@ -12,6 +12,7 @@ const navLinks = [
   { label: "How it works", href: "/#how-it-works" },
   { label: "Job board", href: "/jobs" },
   { label: "Docs", href: "/docs" },
+  { label: "WDK", href: "/wdk" },
 ];
 
 function WalletButton({ className }: { className?: string }) {

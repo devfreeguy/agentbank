@@ -98,7 +98,7 @@ export const useUserStore = create<UserState & UserActions>()(
           `/api/users/me?walletAddress=${walletAddress}`,
         );
 
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 404) {
           set((state) => {
             state.user = null;
             state.hydrated = true;
@@ -109,6 +109,11 @@ export const useUserStore = create<UserState & UserActions>()(
         if (res.data?.data) {
           set((state) => {
             state.user = res.data.data;
+            state.hydrated = true;
+          });
+        } else {
+          // Unexpected response shape — still mark hydrated so the app doesn't stall
+          set((state) => {
             state.hydrated = true;
           });
         }

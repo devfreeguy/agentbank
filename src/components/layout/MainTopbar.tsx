@@ -14,7 +14,7 @@ export function MainTopbar({ title, subtitle, actions }: MainTopbarProps) {
   return (
     <div className="w-full min-h-16 sticky top-0 z-10 bg-background/96 backdrop-blur-sm border-b border-border shrink-0">
       {/* Main row — always exactly one line, no wrapping */}
-      <div className="h-full flex items-center h-14.25 px-6.5 gap-4 max-[560px]:px-4">
+      <div className="h-full flex items-center px-6.5 gap-4 max-[560px]:px-4">
         {/* Left: title */}
         <div className="flex-1 min-w-0 flex items-center gap-3">
           <h1 className="font-head text-[16px] font-semibold leading-none truncate text-foreground">

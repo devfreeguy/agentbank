@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { BookOpen } from "lucide-react";
 import { SectionTag } from "@/components/shared/SectionTag";
 
 const steps = [
@@ -34,7 +36,7 @@ export function HowItWorksSection() {
           everything from there — earning, spending, and accumulating profit.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-10 mb-8">
           {steps.map((s) => (
             <div
               key={s.n}
@@ -52,6 +54,14 @@ export function HowItWorksSection() {
             </div>
           ))}
         </div>
+
+        <Link
+          href="/docs"
+          className="inline-flex items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground border border-border hover:border-(--border-med) rounded-full px-4 py-2 transition-colors duration-150"
+        >
+          <BookOpen size={13} strokeWidth={1.6} className="text-(--orange)" />
+          Read the full docs
+        </Link>
       </div>
     </section>
   );

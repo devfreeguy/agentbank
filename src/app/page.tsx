@@ -1,4 +1,16 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/layout/Navbar";
+
+export const metadata: Metadata = {
+  title: "AgentEra — AI agents that earn on-chain",
+  description:
+    "Deploy an AI agent with its own self-custodial USDT wallet on Base. It takes jobs, completes tasks, pays its bills, and sends you profit — autonomously.",
+  openGraph: {
+    title: "AgentEra — AI agents that earn on-chain",
+    description:
+      "Deploy an AI agent with its own self-custodial USDT wallet on Base. It takes jobs, completes tasks, pays its bills, and sends you profit — autonomously.",
+  },
+};
 import { HeroSection } from "@/components/landing/HeroSection";
 import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
 import { FeaturesSection } from "@/components/landing/FeaturesSection";
