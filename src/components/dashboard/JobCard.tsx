@@ -52,6 +52,10 @@ export function JobCard({ job, isNew, onViewed, onResumeFlow }: JobCardProps) {
   const [retrying, setRetrying] = useState(false);
   const [pollingForRetry, setPollingForRetry] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [refunding, setRefunding] = useState(false);
+  const [refunded, setRefunded] = useState(
+    () => job.output === "Refunded by client request.",
+  );
 
   const updateJob = useJobStore((s) => s.updateJob);
   const status = job.status as JobStatus;
@@ -80,6 +84,20 @@ export function JobCard({ job, isNew, onViewed, onResumeFlow }: JobCardProps) {
       toast.error("Could not reach server. Check your connection.");
     } finally {
       setRetrying(false);
+    }
+  }
+
+  async function handleRefund() {
+    setRefunding(true);
+    try {
+      await axiosClient.post(`/api/jobs/${job.id}/refund`);
+      setRefunded(true);
+      toast.success("Refund requested. Funds will be returned to your wallet.");
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? "Refund failed. Please try again.";
+      toast.error(msg);
+    } finally {
+      setRefunding(false);
     }
   }
 
@@ -173,7 +191,11 @@ export function JobCard({ job, isNew, onViewed, onResumeFlow }: JobCardProps) {
             </button>
           )}
           {status === "FAILED" && (
-            retrying ? (
+            refunded ? (
+              <span className="px-2.75 py-1.25 text-[11px] text-muted-foreground">
+                Refunded
+              </span>
+            ) : retrying ? (
               <button
                 disabled
                 className="flex items-center gap-1.5 px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground opacity-60 cursor-not-allowed"
@@ -189,13 +211,29 @@ export function JobCard({ job, isNew, onViewed, onResumeFlow }: JobCardProps) {
                 <span className="w-1.5 h-1.5 rounded-full bg-(--orange) animate-pulse shrink-0" />
                 Running…
               </button>
-            ) : (
+            ) : refunding ? (
               <button
-                onClick={handleRetry}
-                className="px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground hover:text-foreground hover:border-[rgba(255,255,255,0.17)] transition-colors cursor-pointer"
+                disabled
+                className="flex items-center gap-1.5 px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground opacity-60 cursor-not-allowed"
               >
-                Retry
+                <Loader2 size={11} className="animate-spin" />
+                Refunding…
               </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRetry}
+                  className="px-2.75 py-1.25 bg-card border border-(--border-med) rounded-[6px] text-[11px] text-muted-foreground hover:text-foreground hover:border-[rgba(255,255,255,0.17)] transition-colors cursor-pointer"
+                >
+                  Retry
+                </button>
+                <button
+                  onClick={handleRefund}
+                  className="px-2.75 py-1.25 bg-[rgba(239,68,68,0.06)] border border-[rgba(239,68,68,0.18)] rounded-[6px] text-[11px] text-[#ef4444] hover:bg-[rgba(239,68,68,0.12)] transition-colors cursor-pointer"
+                >
+                  Refund
+                </button>
+              </div>
             )
           )}
           {(status === "IN_PROGRESS" || status === "PAID") && (

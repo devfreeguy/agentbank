@@ -93,7 +93,7 @@ Client describes their task. Before any payment, the agent AI evaluates the job:
 **Step 2 — Payment**
 - Client calls the `AgentEscrow` smart contract on Base via RainbowKit
 - `createJob(agentAddress, usdtAddress, amount)` pulls USDT into escrow and returns an on-chain `jobId`
-- Client's ETH (optional) is forwarded to the agent wallet as a gas reservoir
+- The `jobId` is extracted from the `JobCreated` event log in the confirmed transaction receipt
 
 **Step 3 — Payment Verification**
 - Frontend polls `/api/jobs/[id]/check-payment` every few seconds
@@ -108,6 +108,7 @@ Client describes their task. Before any payment, the agent AI evaluates the job:
 **Step 5 — Settlement**
 - On success: backend calls `completeJob(jobId)` on-chain → USDT released from escrow to agent wallet → job marked `DELIVERED`
 - On failure or rejection: backend calls `refundJob(jobId)` → USDT returned to client → job marked `FAILED`
+- If a job fails, the client can trigger a manual refund from the job card (Refund button), or retry the job
 
 ### 5. Agent-to-Agent Delegation
 For complex tasks, the AI decision engine can delegate to a sub-agent:
@@ -126,26 +127,34 @@ For complex tasks, the AI decision engine can delegate to a sub-agent:
 
 ## Smart Contract — AgentEscrow
 
-Deployed on Base mainnet at `0xA14Bd9C0A4EA234c359392c62FdA6c61661C1DE0`
+Deployed on Base mainnet at `0x27504Ba69727fD30EC92d2c8A1AC58dA5b5c1b67`
 
 ```solidity
+enum JobStatus { PENDING, COMPLETED, REFUNDED }
+
 struct Job {
     address client;
     address agent;
     address usdt;
     uint256 amount;
-    bool completed;
-    bool refunded;
+    uint256 createdAt;
+    JobStatus status;
 }
 
-function createJob(address agent, address usdt, uint256 amount) external payable returns (uint256 jobId);
-function completeJob(uint256 jobId) external;
-function refundJob(uint256 jobId) external;
+function createJob(address agent, address usdt, uint256 amount) external returns (uint256 jobId);
+function completeJob(uint256 jobId) external;   // onlyServer
+function refundJob(uint256 jobId) external;     // onlyServer
+function forceRefund(uint256 jobId) external;   // anyone, after 1-day timeout
+function setServerAdmin(address _adminAddress) external; // onlyOwner
 ```
 
-- `createJob` — escrows USDT from client, optionally forwards ETH to agent as gas
-- `completeJob` — releases escrowed USDT to agent wallet (called by backend on success)
-- `refundJob` — returns USDT to client (called by backend on failure or rejection)
+- `createJob` — pulls USDT from client into escrow, returns on-chain `jobId`
+- `completeJob` — releases escrowed USDT to agent wallet (called by backend server wallet on success)
+- `refundJob` — returns USDT to client (called by backend on failure, rejection, or client request)
+- `forceRefund` — emergency escape callable by anyone after the 1-day `TIMEOUT` if a job is stuck
+- `setServerAdmin` — owner-only, registers the backend wallet allowed to call `completeJob`/`refundJob`
+
+Uses OpenZeppelin `ReentrancyGuard` and `SafeERC20`.
 
 ---
 
@@ -218,9 +227,9 @@ All requests require the `x-wdk-service-secret` header. Seed phrases are decrypt
 ```
 PENDING ──► PAID ──► IN_PROGRESS ──► DELIVERED
   │                       │
-  │                       └──────────► FAILED
+  │                       └──────────► FAILED ──► [client: Retry or Refund]
   │
-  └── (agent rejects pre-payment) ──► FAILED (no charge)
+  └── (agent rejects pre-payment) ──► FAILED (no charge, auto-refunded)
 ```
 
 ---
@@ -299,7 +308,7 @@ wdk-service/
   Dockerfile          # Fly.io build
   fly.toml            # Fly.io config (always-on, 256MB, iad region)
 contracts/
-  AgentGasRouter.sol  # AgentEscrow — escrow logic
+  AgentEscrow.sol     # Escrow logic — ReentrancyGuard, SafeERC20, onlyServer
 prisma/
   schema.prisma       # DB schema: User, Agent, Job, SubAgentJob, AgentTransaction, Category
 ```
@@ -339,7 +348,7 @@ Create `.env` in the project root:
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | WalletConnect project ID |
 | `NEXT_PUBLIC_BASE_RPC` | Base mainnet RPC URL |
 | `BASE_RPC_URL` | Base RPC URL for server-side (can use Alchemy) |
-| `CONTRACT_ADDRESS` | AgentEscrow contract address |
+| `NEXT_PUBLIC_CONTRACT_ADDRESS` | AgentEscrow contract address (browser-visible) |
 | `PLATFORM_BILLING_ADDRESS` | Platform wallet for fee collection |
 | `WDK_INDEXER_API_KEY` | Tether WDK Indexer API key |
 | `WDK_SERVICE_SECRET` | Shared secret between Next.js and WDK microservice |
@@ -392,7 +401,9 @@ fly deploy
 
 ### Next.js app (Vercel)
 
-Set all environment variables in Vercel dashboard, then push to trigger a deploy. Vercel cron (`vercel.json`) hits `/api/ping` every 4 minutes.
+Set all environment variables in Vercel dashboard, then push to trigger a deploy.
+
+To keep NeonDB warm, set up an external cron (e.g. [cron-job.org](https://cron-job.org)) to ping `GET /api/ping` every 4 minutes. Vercel Hobby plan only supports daily crons, which is insufficient.
 
 ---
 

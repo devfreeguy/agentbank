@@ -17,24 +17,35 @@ export async function POST(req: Request) {
     let onChainJobId: string | null = null;
 
     if (!isFakeTxHash) {
-      // 1. Read the latest Job ID from the Smart Contract
+      // 1. Wait for the tx to be confirmed, then extract jobId from the JobCreated event log
       const client = createPublicClient({ chain: base, transport: http(rpcUrl) });
       const contractAddress = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? "") as `0x${string}`;
 
-      const latestOnChainId = await client.readContract({
-        address: contractAddress,
-        abi: [
-          {
-            name: "jobCounter",
-            type: "function",
-            stateMutability: "view",
-            inputs: [],
-            outputs: [{ type: "uint256" }],
-          },
-        ],
-        functionName: "jobCounter",
-      });
-      onChainJobId = latestOnChainId.toString();
+      // Wait for the tx to be confirmed on-chain before reading the job ID
+      const receipt = await client.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+
+      // Extract jobId from the JobCreated event log emitted by the escrow contract.
+      // Event: JobCreated(uint256 jobId, address client, address agent, uint256 amount)
+      // No params are indexed → all 4 values are ABI-encoded in log.data (32 bytes each).
+      // jobId is the first 32 bytes of data.
+      const jobCreatedLog = receipt.logs.find(
+        (log) => log.address.toLowerCase() === contractAddress.toLowerCase()
+      );
+
+      if (jobCreatedLog?.data && jobCreatedLog.data.length >= 66) {
+        const jobIdHex = jobCreatedLog.data.slice(0, 66); // "0x" + 64 hex chars = 32 bytes
+        onChainJobId = BigInt(jobIdHex).toString();
+      }
+
+      if (!onChainJobId) {
+        // Fallback: jobCounter is already incremented by this point since tx is confirmed
+        const counter = await client.readContract({
+          address: contractAddress,
+          abi: [{ name: "jobCounter", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
+          functionName: "jobCounter",
+        });
+        onChainJobId = counter.toString();
+      }
     } else {
       console.log("[Execute API] Dev fake txHash detected — skipping on-chain read");
     }
